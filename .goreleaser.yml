@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+    - go test -count=1 ./...
+
+builds:
+  - id: novel-translate-cli
+    main: ./cmd/novel-translate-cli
+    binary: novel-translate-cli
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.CommitDate}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: novel-translate-cli-archive
+    ids:
+      - novel-translate-cli
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - README.md
+      - LICENSE
+      - config.example.jsonc
+      - config.gemini.example.jsonc
+      - config.anthropic.example.jsonc
+      - .env.example
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+
+checksum:
+  name_template: "{{ .ProjectName }}_checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  groups:
+    - title: "New Features"
+      regexp: '^feat'
+    - title: "Bug Fixes"
+      regexp: '^fix'
+    - title: "Performance"
+      regexp: '^perf'
+    - title: "Refactor"
+      regexp: '^refactor'
+    - title: "Others"
+      order: 999
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - "^style:"
+
+release:
+  disable: true

@@ -1,0 +1,95 @@
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage profiles and other test artifacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# env file
+.env
+.env.*
+!.env.example
+
+# Local credentials and workspace artifacts
+.novel-translate/
+.translation_work/
+
+# Editor/IDE
+.idea/
+.vscode/
+.cache
+.DS_Store
+
+# GoReleaser artifacts
+dist/
+release-notes.md
+/novel-translate-cli
+/bin/
+
+/tasks
+/refer/
+/output*
+/workspace/
+/novels/
+/config/
+config/config.json
+config/models-cache.json
+*.log
+/logs/
+scratch/
+__pycache__/
+*.pyc
+/config-laptop/
+/workspace-laptop/
+
+# Documentation
+docs/
+.docs/
+
+# Books, light novels & EPUBs
+*.epub
+*.mobi
+*.azw3
+*.pdf
+*.cbz
+*.cbr
+[Vv]ol*
+*rezero*
+*ReZero*
+*re_zero*
+*Re_Zero*
+*re-zero*
+*Re-Zero*
+
+# Personal skills, glossaries & conventions
+/Skills/
+/skills/
+*quy_uoc*
+*xung_ho*
+*glossary*
+*Glossary*
+
+# Whitelist source directories
+!internal/
+!internal/**
+!assets/
+!assets/**

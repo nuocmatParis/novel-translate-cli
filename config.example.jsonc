@@ -1,0 +1,23 @@
+{
+  // Replace provider/model with your chosen service. No key is stored here.
+  // api_key_env is resolved from the process environment or a local .env file.
+  // For a basic setup without editing files, open TUI and press m.
+  "provider": "translation-service",
+  "model": "YOUR_MODEL_ID",
+  "providers": {
+    "translation-service": {
+      "type": "openai",
+      "api": "chat",
+      "api_key_env": "NOVEL_TRANSLATE_API_KEY",
+      "base_url": "https://YOUR_SERVICE_HOST/v1",
+      "models": [{"name": "YOUR_MODEL_ID", "context_window": 32768}],
+      "stream_idle_timeout": "3m"
+    }
+  },
+  "roles": {
+    "translation": {"provider": "translation-service", "model": "YOUR_MODEL_ID"},
+    "translation_review": {"provider": "translation-service", "model": "YOUR_MODEL_ID"},
+    "translation_research": {"provider": "translation-service", "model": "YOUR_MODEL_ID"}
+  },
+  "budget": {"book_usd": 0}
+}

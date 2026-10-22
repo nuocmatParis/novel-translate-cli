@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dev
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Format check
+        shell: bash
+        run: test -z "$(gofmt -l .)"
+
+      - name: Shell scripts syntax check
+        if: runner.os == 'Linux'
+        run: |
+          sh -n scripts/install.sh
+          sh -n scripts/run.sh
+
+      - name: Vet
+        env:
+          GOWORK: "off"
+        run: go vet ./...
+
+      - name: Test
+        env:
+          GOWORK: "off"
+        run: go test -buildvcs=false -count=1 ./...
+
+      - name: Race test critical state paths
+        if: runner.os == 'Linux'
+        env:
+          GOWORK: "off"
+        run: go test -race -buildvcs=false -count=1 ./internal/translation/state ./internal/translation/engine ./internal/translation/continuity ./internal/translation/revision ./internal/translation/model ./internal/translation/cli
+
+      - name: Build translation binary
+        run: go build -trimpath ./cmd/novel-translate-cli
+
+      - name: Upload executable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: novel-translate-${{ matrix.os }}
+          path: |
+            novel-translate-cli
+            novel-translate-cli.exe
+          if-no-files-found: ignore
+
+  epubcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install EPUBCheck distribution
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://github.com/w3c/epubcheck/releases/download/v5.4.0/epubcheck-5.4.0.zip \
+            --output "$RUNNER_TEMP/epubcheck.zip"
+          unzip -q "$RUNNER_TEMP/epubcheck.zip" -d "$RUNNER_TEMP/epubcheck"
+          java -jar "$RUNNER_TEMP/epubcheck/epubcheck-5.4.0/epubcheck.jar" --version
+      - name: Export synthetic books with real EPUBCheck
+        env:
+          NOVEL_TRANSLATE_TEST_EPUBCHECK: ${{ runner.temp }}/epubcheck/epubcheck-5.4.0/epubcheck.jar
+          NOVEL_TRANSLATE_LIVE_PROVIDER: ''
+        run: go test -buildvcs=false -count=1 -run 'TestOfflineCLIWorkflowAndPreview|TestImageCLIEditRoundTrip' -v ./internal/translation/cli

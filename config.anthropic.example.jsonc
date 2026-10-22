@@ -1,0 +1,13 @@
+{
+  // Native Anthropic protocol. Replace with a model ID available to your key.
+  "provider": "anthropic",
+  "model": "YOUR_CLAUDE_MODEL_ID",
+  "providers": {
+    "anthropic": {
+      "type": "anthropic",
+      "api_key_env": "NOVEL_TRANSLATE_API_KEY",
+      "models": [{"name": "YOUR_CLAUDE_MODEL_ID"}]
+    }
+  },
+  "budget": {"book_usd": 0}
+}

@@ -1,0 +1,14 @@
+{
+  // Native Gemini protocol. Replace with a model ID available to your API key.
+  // The provider uses its default endpoint; do not add api: "chat" here.
+  "provider": "google",
+  "model": "YOUR_GEMINI_MODEL_ID",
+  "providers": {
+    "google": {
+      "type": "gemini",
+      "api_key_env": "NOVEL_TRANSLATE_API_KEY",
+      "models": [{"name": "YOUR_GEMINI_MODEL_ID"}]
+    }
+  },
+  "budget": {"book_usd": 0}
+}
