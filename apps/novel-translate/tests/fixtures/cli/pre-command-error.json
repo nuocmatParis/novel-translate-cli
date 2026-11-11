@@ -1,0 +1,1 @@
+{"schema_version":1,"command":null,"state":"failed","task_id":null,"scope":null,"result":null,"issues":[{"code":"cli.command_required","severity":"error","message":"Cần cung cấp một lệnh."}],"next_action":null}

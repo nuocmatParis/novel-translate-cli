@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "apps/novel-translate",
+    "crates/nt-domain",
+    "crates/nt-application",
+    "crates/nt-tui",
+]
+default-members = ["apps/novel-translate"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
