@@ -33,10 +33,12 @@ func (s *AppService) AvailableWorkspaces() ([]WorkspaceSummary, error) {
 			return
 		}
 		root := cfg.Root
+		// Preserve the metadata path for selection; canonicalize only for deduplication.
+		identityRoot := root
 		if canonical, err := filepath.EvalSymlinks(root); err == nil {
-			root = canonical
+			identityRoot = canonical
 		}
-		key := root
+		key := identityRoot
 		if runtime.GOOS == "windows" {
 			key = strings.ToLower(key)
 		}
