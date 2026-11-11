@@ -1,0 +1,217 @@
+name: Rust CI
+
+on:
+  push:
+    branches:
+      - rewrite/rust
+      - main
+      - dev
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  fmt:
+    name: fmt (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Show pinned toolchain
+        shell: pwsh
+        run: |
+          rustup show active-toolchain
+          rustc -vV
+          cargo --version
+
+      - name: Check formatting
+        shell: pwsh
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: clippy (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust-toolchain.toml', '**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Show pinned toolchain
+        shell: pwsh
+        run: |
+          rustup show active-toolchain
+          rustc -vV
+          cargo --version
+
+      - name: Lint all targets and features
+        shell: pwsh
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+  test:
+    name: test (Windows x64 MSVC)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust-toolchain.toml', '**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Show pinned toolchain and verify Windows target
+        shell: pwsh
+        run: |
+          rustup show active-toolchain
+          $toolchain = rustc -vV
+          $toolchain
+          $windowsHostTriple = ($toolchain | Select-String '^host: ').Line -replace '^host: ', ''
+          if ($windowsHostTriple -ne 'x86_64-pc-windows-msvc') {
+            throw "Expected Windows MSVC host, received '$windowsHostTriple'."
+          }
+          cargo --version
+
+      - name: Prepare locked dependencies for all targets
+        shell: pwsh
+        run: cargo fetch --locked
+
+      - name: Verify architecture boundary tests
+        shell: pwsh
+        run: cargo test -p novel-translate --test architecture_boundaries --locked
+
+      - name: Verify workspace test discovery
+        shell: pwsh
+        run: |
+          $output = & cargo test --workspace --all-features --locked -- --list 2>&1
+          $exitCode = $LASTEXITCODE
+          $output | ForEach-Object { Write-Output "$_" }
+          if ($exitCode -ne 0) {
+            throw "Cargo test listing failed with exit code $exitCode."
+          }
+          $listedTests = @($output | Where-Object { "$_" -match ': test$' })
+          if ($listedTests.Count -eq 0) {
+            throw 'Cargo discovered zero workspace tests.'
+          }
+          Write-Output "Cargo discovered $($listedTests.Count) workspace tests."
+
+      - name: Test workspace
+        shell: pwsh
+        run: cargo test --workspace --all-features --locked
+
+      - name: Build release workspace
+        shell: pwsh
+        run: cargo build --workspace --release --locked
+
+      - name: Test with outbound network blocked (V-07)
+        shell: pwsh
+        run: |
+          $rules = [System.Collections.Generic.List[string]]::new()
+          $testFailure = $null
+          $cleanupFailures = [System.Collections.Generic.List[string]]::new()
+          try {
+            $firewallService = Get-Service -Name MpsSvc -ErrorAction Stop
+            if ($firewallService.Status -ne 'Running') {
+              throw 'Windows Defender Firewall service is not running.'
+            }
+            $enabledProfiles = @(Get-NetFirewallProfile -PolicyStore ActiveStore | Where-Object { $_.Enabled -eq 'True' })
+            if ($enabledProfiles.Count -eq 0) {
+              throw 'Windows Defender Firewall has no enabled active profile.'
+            }
+
+            $blockedPrograms = @(
+              Get-Command cargo, rustc, rustup -ErrorAction Stop |
+                Select-Object -ExpandProperty Source
+              Get-ChildItem -LiteralPath 'target/debug' -Filter '*.exe' -File -Recurse |
+                Select-Object -ExpandProperty FullName
+            ) | Sort-Object -Unique
+            if ($blockedPrograms.Count -eq 0) {
+              throw 'No Rust tool or test executable paths were found for V-07.'
+            }
+
+            $index = 0
+            foreach ($program in $blockedPrograms) {
+              $index++
+              $rule = New-NetFirewallRule `
+                -DisplayName "P01-T13 V-07 test process $index" `
+                -Direction Outbound `
+                -Action Block `
+                -Program $program `
+                -Profile Any `
+                -RemoteAddress Any `
+                -Enabled True `
+                -ErrorAction Stop
+              $rules.Add($rule.Name)
+
+              $activeRule = Get-NetFirewallRule -Name $rule.Name -ErrorAction Stop
+              $addressFilter = $activeRule | Get-NetFirewallAddressFilter
+              $applicationFilter = $activeRule | Get-NetFirewallApplicationFilter -ErrorAction Stop
+              if ($activeRule.Enabled -ne 'True' -or $activeRule.Action -ne 'Block' -or $activeRule.Direction -ne 'Outbound' -or $addressFilter.RemoteAddress -notcontains 'Any' -or $applicationFilter.Program -ne $program) {
+                throw "The temporary outbound block is not active for '$program'."
+              }
+            }
+            Write-Output "Windows Defender Firewall service is running with $($enabledProfiles.Count) enabled profile(s)."
+            Write-Output "Verified $($rules.Count) active outbound block rules, each scoped to the exact Rust tool/test executable and all remote addresses. Cargo runs with --offline."
+
+            $output = & cargo test --workspace --all-features --locked --offline 2>&1
+            $exitCode = $LASTEXITCODE
+            $output | ForEach-Object { Write-Output "$_" }
+            if ($exitCode -ne 0) {
+              throw "Offline workspace tests failed with exit code $exitCode."
+            }
+          }
+          catch {
+            $testFailure = $_
+          }
+          finally {
+            foreach ($ruleName in $rules) {
+              try {
+                Remove-NetFirewallRule -Name $ruleName -ErrorAction Stop
+              }
+              catch {
+                $cleanupFailures.Add("$ruleName`: $($_.Exception.Message)")
+              }
+            }
+            Write-Output "Removed $($rules.Count) temporary outbound firewall rules."
+          }
+          if ($cleanupFailures.Count -gt 0) {
+            $cleanupMessage = "Failed to remove temporary firewall rules: $($cleanupFailures -join '; ')"
+            if ($testFailure) {
+              Write-Error $cleanupMessage -ErrorAction Continue
+            }
+            else {
+              throw $cleanupMessage
+            }
+          }
+          if ($testFailure) {
+            throw $testFailure
+          }

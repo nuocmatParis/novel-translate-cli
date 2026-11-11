@@ -419,7 +419,53 @@ Kiểm chứng ngày **21/10/2026**: toàn suite offline, export với EPUBCheck
 
 Docker là tùy chọn: chuẩn bị `config/provider.json`, `tools/epubcheck/` và `workspace/`, rồi dùng `docker compose run --rm --build novel-translate tui`. Workspace được bind-mount nên `.env` bên trong từng workspace cũng được đọc tự động; Compose có thể chuyển `NOVEL_TRANSLATE_API_KEY` từ shell và giá trị không rỗng này được ưu tiên. Workspace trong container dùng đường dẫn Linux: đặt `provider_config: /root/.novel-translate/config.json` (hoặc bỏ trường này để dùng fallback) và checker `/tools/epubcheck/epubcheck.jar`; không dùng đường dẫn `D:/...` trong đó. Nếu thiết lập model bằng TUI, file provider và `.env` được lưu ngay trong workspace đó.
 
+### Rust workspace scaffold (`rewrite/rust`)
+
+Bản Rust đang được xây theo workspace bốn package. Phase 01 bổ sung CLI và shell theo từng task. P01-T06 thêm CLI bootstrap và shell ban đầu; shell hiện tại có tám màn hình điều hướng được mô tả ở mục bên dưới. Chạy executable không tham số trong terminal tương tác sẽ mở shell; nhấn **Ctrl+C** để thoát qua cleanup terminal. Chạy khi stdin/stdout không phải TTY sẽ trả lỗi hữu hạn. Build trên Windows x64 từ repo root:
+
+```powershell
+cargo build --workspace --locked
+```
+
+Rust toolchain được ghim ở **1.99.1**, MSRV là **1.88.0**. Kiểm chứng Rust hiện nhắm `x86_64-pc-windows-msvc`; kiểm tra Linux native được hoãn theo kế hoạch.
+
+#### Chạy shell Rust hiện tại
+
+Rust hiện cung cấp CLI nền tảng và tám màn hình trạng thái trống: **Tổng quan**, **Tập và chương**, **Tác vụ**, **Editor Nhật–Việt**, **Reviewer**, **Skills và ngữ cảnh**, **Ảnh và xuất**, **Cấu hình, báo cáo và trợ giúp**. Các màn nghiệp vụ tạo/mở workspace, nhập EPUB, dịch, review và xuất chưa được nối trong Rust. Dùng ứng dụng Go ở trên cho các công việc với sách; Phase 01 không thay đổi định dạng workspace Go hay tuyên bố feature parity.
+
+Từ PowerShell tại repo root trên Windows x64:
+
+```powershell
+cargo build --workspace --locked
+if ($LASTEXITCODE -ne 0) { throw 'Build Rust không thành công.' }
+$rustApp = (Resolve-Path -LiteralPath '.\target\debug\novel-translate-cli.exe').Path
+& $rustApp --help
+& $rustApp --version
+& $rustApp
+```
+
+`--help` và `--version` in kết quả rồi trả về shell. Chạy không tham số trong terminal tương tác mở **Tổng quan**. Dùng **↑/↓** chọn route, **Enter** mở, **F1** xem trợ giúp theo màn, **Esc** đóng trợ giúp, **Tab** chuyển focus tới **Thoát** rồi **Enter** để kết thúc; **Ctrl+C** cũng yêu cầu shutdown qua cleanup terminal. Ở view chính, **PageUp/PageDown** cuộn nội dung khi có phần tràn; hai phím này không điều khiển help/modal. Bố cục dùng được từ **80×24** và đổi theo chiều rộng; dưới ngưỡng shell hiện cảnh báo, giữ state và ẩn control không dùng được.
+
+CLI chưa có business command. Ví dụ chạy không tương tác trả JSON lỗi hữu hạn và mã thoát `2` vì thiếu lệnh; nó không khởi chạy TUI:
+
+```powershell
+& $rustApp --json --non-interactive
+$LASTEXITCODE
+```
+
+Các kiểm tra Rust của workspace:
+
+```powershell
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --all-features --locked
+cargo build --workspace --release --locked
+cargo test -p novel-translate --test architecture_boundaries --locked
+```
+
 ## 10. Giới hạn và xử lý lỗi
+
+Phần này mô tả ứng dụng Go. CLI Rust trong Phase 01 chưa có business command; lỗi tham số hoặc thiếu lệnh trả mã `2` như ví dụ ở phần Rust phía trên.
 
 | Exit code | Ý nghĩa |
 | --- | --- |
