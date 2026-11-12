@@ -12,13 +12,15 @@ use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior};
 
 const DATABASE_FILE: &str = "series.sqlite3";
 const LEGACY_GO_MARKER: &str = "workspace.yaml";
-const SCHEMA_VERSION: u32 = 1;
-const APPLICATION_ID: i64 = 0x4E54_5253;
+const BOOTSTRAP_MARKER: &str = ".nt-bootstrap-incomplete";
+const BOOTSTRAP_MARKER_CONTENT: &[u8] = b"NT-P02-M002-BOOTSTRAP-V1\n";
+pub(super) const SCHEMA_VERSION: u32 = 2;
+pub(super) const APPLICATION_ID: i64 = 0x4E54_5253;
 const BOOTSTRAP_GENERATION: &str = "g0";
 const BUSY_TIMEOUT: Duration = Duration::from_secs(2);
 static NEXT_VALIDATION_SNAPSHOT: AtomicU64 = AtomicU64::new(0);
 
-const SCHEMA_V1: &str = r#"
+pub(super) const SCHEMA_V1: &str = r#"
 CREATE TABLE series (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
     series_id TEXT NOT NULL UNIQUE
@@ -69,16 +71,35 @@ impl WorkspaceRepository for SqliteWorkspaceRepository {
     fn create(&self, root: &Path) -> Result<WorkspaceMetadata, WorkspaceError> {
         let prepared = prepare_create_root(root)?;
         let database_path = prepared.path.join(DATABASE_FILE);
+        let marker_path = prepared.path.join(BOOTSTRAP_MARKER);
 
-        let database_file = match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&database_path)
-        {
-            Ok(file) => file,
-            Err(error) => {
-                remove_created_root_if_empty(&prepared);
-                return Err(map_io_error(error));
+        if prepared.recovering_bootstrap {
+            if let Some(metadata) = recover_committed_bootstrap(&prepared.path)? {
+                let _ = fs::remove_file(&marker_path);
+                return Ok(metadata);
+            }
+        } else if let Err(error) = create_bootstrap_marker(&marker_path) {
+            remove_created_root_if_empty(&prepared);
+            return Err(map_io_error(error));
+        }
+
+        let database_file = if prepared.recovering_bootstrap && database_path.exists() {
+            match OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&database_path)
+            {
+                Ok(file) => file,
+                Err(error) => return Err(map_io_error(error)),
+            }
+        } else {
+            match OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&database_path)
+            {
+                Ok(file) => file,
+                Err(error) => return Err(map_io_error(error)),
             }
         };
         drop(database_file);
@@ -90,18 +111,17 @@ impl WorkspaceRepository for SqliteWorkspaceRepository {
             )
             .map_err(map_sqlite_error)?;
             configure_new_database(&connection)?;
-            let metadata = bootstrap_v1(&mut connection)?;
+            let metadata = bootstrap_v2(&mut connection)?;
             validate_schema(&connection)?;
             Ok(metadata)
         })();
 
         match result {
-            Ok(metadata) => Ok(metadata),
-            Err(error) => {
-                remove_new_database_artifacts(&database_path);
-                remove_created_root_if_empty(&prepared);
-                Err(error)
+            Ok(metadata) => {
+                let _ = fs::remove_file(&marker_path);
+                Ok(metadata)
             }
+            Err(error) => Err(error),
         }
     }
 
@@ -115,7 +135,7 @@ impl WorkspaceRepository for SqliteWorkspaceRepository {
             return Err(WorkspaceError::UnsupportedFormat);
         }
 
-        let metadata = {
+        let preflight_metadata = {
             let snapshot = create_validation_snapshot(&database_path)?;
             let validation = Connection::open_with_flags(
                 &snapshot.database_path,
@@ -140,12 +160,16 @@ impl WorkspaceRepository for SqliteWorkspaceRepository {
             .open(&database_path)
             .map_err(map_io_error)?;
 
-        let connection = Connection::open_with_flags(
+        let mut connection = Connection::open_with_flags(
             &database_path,
             OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )
         .map_err(map_sqlite_error)?;
         configure_existing_database(&connection)?;
+        if preflight_metadata.schema_version == 1 {
+            super::migration::migrate_v1_to_v2(&root, &mut connection)?;
+        }
+        let metadata = validate_database(&connection)?;
         Ok(metadata)
     }
 }
@@ -154,6 +178,7 @@ impl WorkspaceRepository for SqliteWorkspaceRepository {
 struct PreparedRoot {
     path: PathBuf,
     created_by_call: bool,
+    recovering_bootstrap: bool,
 }
 
 struct ValidationSnapshot {
@@ -273,26 +298,29 @@ fn prepare_create_root(path: &Path) -> Result<PreparedRoot, WorkspaceError> {
             let root = fs::canonicalize(path).map_err(map_io_error)?;
             ensure_local_volume(&root)?;
             reject_legacy_go_workspace(&root)?;
+            let recovering_bootstrap = validate_bootstrap_directory(&root)?;
+            if !recovering_bootstrap {
+                match fs::symlink_metadata(root.join(DATABASE_FILE)) {
+                    Ok(_) => return Err(WorkspaceError::AlreadyExists),
+                    Err(error) if error.kind() == ErrorKind::NotFound => {}
+                    Err(error) => return Err(map_io_error(error)),
+                }
 
-            match fs::symlink_metadata(root.join(DATABASE_FILE)) {
-                Ok(_) => return Err(WorkspaceError::AlreadyExists),
-                Err(error) if error.kind() == ErrorKind::NotFound => {}
-                Err(error) => return Err(map_io_error(error)),
-            }
-
-            if fs::read_dir(&root)
-                .map_err(map_io_error)?
-                .next()
-                .transpose()
-                .map_err(map_io_error)?
-                .is_some()
-            {
-                return Err(WorkspaceError::DirectoryNotEmpty);
+                if fs::read_dir(&root)
+                    .map_err(map_io_error)?
+                    .next()
+                    .transpose()
+                    .map_err(map_io_error)?
+                    .is_some()
+                {
+                    return Err(WorkspaceError::DirectoryNotEmpty);
+                }
             }
 
             Ok(PreparedRoot {
                 path: root,
                 created_by_call: false,
+                recovering_bootstrap,
             })
         }
         Err(error) if error.kind() == ErrorKind::NotFound => {
@@ -322,10 +350,105 @@ fn prepare_create_root(path: &Path) -> Result<PreparedRoot, WorkspaceError> {
             Ok(PreparedRoot {
                 path: canonical_root,
                 created_by_call: true,
+                recovering_bootstrap: false,
             })
         }
         Err(error) => Err(map_io_error(error)),
     }
+}
+
+fn create_bootstrap_marker(path: &Path) -> std::io::Result<()> {
+    let mut marker = OpenOptions::new().write(true).create_new(true).open(path)?;
+    marker.write_all(BOOTSTRAP_MARKER_CONTENT)?;
+    marker.sync_all()
+}
+
+fn validate_bootstrap_directory(root: &Path) -> Result<bool, WorkspaceError> {
+    let marker_path = root.join(BOOTSTRAP_MARKER);
+    match fs::symlink_metadata(&marker_path) {
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(map_io_error(error)),
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            return Err(WorkspaceError::DirectoryNotEmpty);
+        }
+        Ok(metadata) if metadata.len() != BOOTSTRAP_MARKER_CONTENT.len() as u64 => {
+            return Err(WorkspaceError::DirectoryNotEmpty);
+        }
+        Ok(_) => {
+            let contents = fs::read(&marker_path).map_err(map_io_error)?;
+            if contents != BOOTSTRAP_MARKER_CONTENT {
+                return Err(WorkspaceError::DirectoryNotEmpty);
+            }
+        }
+    }
+
+    let database_path = root.join(DATABASE_FILE);
+    let mut has_database = false;
+    for entry in fs::read_dir(root).map_err(map_io_error)? {
+        let entry = entry.map_err(map_io_error)?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let metadata = fs::symlink_metadata(entry.path()).map_err(map_io_error)?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(WorkspaceError::DirectoryNotEmpty);
+        }
+        match name.as_ref() {
+            BOOTSTRAP_MARKER => {}
+            DATABASE_FILE => has_database = true,
+            "series.sqlite3-wal" | "series.sqlite3-shm" | "series.sqlite3-journal" => {}
+            _ => return Err(WorkspaceError::DirectoryNotEmpty),
+        }
+    }
+    if !has_database
+        && ["-wal", "-shm", "-journal"]
+            .iter()
+            .any(|suffix| sidecar_path(&database_path, suffix).exists())
+    {
+        return Err(WorkspaceError::DirectoryNotEmpty);
+    }
+    Ok(true)
+}
+
+fn sidecar_path(database_path: &Path, suffix: &str) -> PathBuf {
+    let mut path = database_path.as_os_str().to_os_string();
+    path.push(suffix);
+    PathBuf::from(path)
+}
+
+fn recover_committed_bootstrap(root: &Path) -> Result<Option<WorkspaceMetadata>, WorkspaceError> {
+    let database_path = root.join(DATABASE_FILE);
+    if !database_path.exists() {
+        return Ok(None);
+    }
+    let connection = Connection::open_with_flags(
+        &database_path,
+        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(map_corrupt_or_sqlite_error)?;
+    connection
+        .busy_timeout(BUSY_TIMEOUT)
+        .map_err(map_sqlite_error)?;
+    let application_id = connection
+        .pragma_query_value(None, "application_id", |row| row.get::<_, i64>(0))
+        .map_err(map_corrupt_or_sqlite_error)?;
+    let schema_version = connection
+        .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+        .map_err(map_corrupt_or_sqlite_error)?;
+    let application_table_count: i64 = connection
+        .query_row(
+            "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(map_corrupt_or_sqlite_error)?;
+
+    if application_id == APPLICATION_ID && schema_version == i64::from(SCHEMA_VERSION) {
+        return validate_database(&connection).map(Some);
+    }
+    if application_id == 0 && schema_version == 0 && application_table_count == 0 {
+        return Ok(None);
+    }
+    Err(WorkspaceError::CorruptWorkspace)
 }
 
 fn prepare_open_root(path: &Path) -> Result<PathBuf, WorkspaceError> {
@@ -374,14 +497,6 @@ fn remove_created_root_if_empty(root: &PreparedRoot) {
     }
 }
 
-fn remove_new_database_artifacts(database_path: &Path) {
-    for suffix in ["", "-wal", "-shm", "-journal"] {
-        let mut artifact = database_path.as_os_str().to_owned();
-        artifact.push(suffix);
-        let _ = fs::remove_file(PathBuf::from(artifact));
-    }
-}
-
 #[cfg(windows)]
 fn ensure_local_volume(path: &Path) -> Result<(), WorkspaceError> {
     use std::os::windows::ffi::OsStrExt;
@@ -425,12 +540,39 @@ fn configure_new_database(connection: &Connection) -> Result<(), WorkspaceError>
     verify_wal_mode(connection)
 }
 
-fn configure_existing_database(connection: &Connection) -> Result<(), WorkspaceError> {
+pub(super) fn configure_existing_database(connection: &Connection) -> Result<(), WorkspaceError> {
     configure_connection(connection)?;
     verify_wal_mode(connection)
 }
 
-fn configure_connection(connection: &Connection) -> Result<(), WorkspaceError> {
+pub(super) fn open_read_only_workspace(
+    path: &Path,
+) -> Result<(Connection, WorkspaceMetadata), WorkspaceError> {
+    let root = prepare_open_root(path)?;
+    reject_legacy_go_workspace(&root)?;
+    let database_path = root.join(DATABASE_FILE);
+    let metadata = fs::symlink_metadata(&database_path).map_err(map_io_error)?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(WorkspaceError::UnsupportedFormat);
+    }
+
+    let connection = Connection::open_with_flags(
+        database_path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(map_corrupt_or_sqlite_error)?;
+    connection
+        .busy_timeout(BUSY_TIMEOUT)
+        .map_err(map_sqlite_error)?;
+    connection
+        .execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(map_sqlite_error)?;
+    verify_wal_mode(&connection)?;
+    let metadata = validate_database_read_only(&connection)?;
+    Ok((connection, metadata))
+}
+
+pub(super) fn configure_connection(connection: &Connection) -> Result<(), WorkspaceError> {
     connection
         .busy_timeout(BUSY_TIMEOUT)
         .map_err(map_sqlite_error)?;
@@ -447,7 +589,7 @@ fn configure_connection(connection: &Connection) -> Result<(), WorkspaceError> {
     Ok(())
 }
 
-fn verify_wal_mode(connection: &Connection) -> Result<(), WorkspaceError> {
+pub(super) fn verify_wal_mode(connection: &Connection) -> Result<(), WorkspaceError> {
     let mode: String = connection
         .pragma_query_value(None, "journal_mode", |row| row.get(0))
         .map_err(map_sqlite_error)?;
@@ -458,7 +600,20 @@ fn verify_wal_mode(connection: &Connection) -> Result<(), WorkspaceError> {
     }
 }
 
-fn bootstrap_v1(connection: &mut Connection) -> Result<WorkspaceMetadata, WorkspaceError> {
+fn bootstrap_v2(connection: &mut Connection) -> Result<WorkspaceMetadata, WorkspaceError> {
+    bootstrap_v2_with_hook(connection, || {
+        #[cfg(test)]
+        if std::env::var_os("NT_STORAGE_TEST_CRASH_BEFORE_BOOTSTRAP_COMMIT").is_some() {
+            std::process::exit(91);
+        }
+        Ok(())
+    })
+}
+
+fn bootstrap_v2_with_hook(
+    connection: &mut Connection,
+    before_commit: impl FnOnce() -> Result<(), WorkspaceError>,
+) -> Result<WorkspaceMetadata, WorkspaceError> {
     let created_at_utc_ms = now_utc_ms()?;
     let transaction = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -467,6 +622,7 @@ fn bootstrap_v1(connection: &mut Connection) -> Result<WorkspaceMetadata, Worksp
     transaction
         .execute_batch(SCHEMA_V1)
         .map_err(map_sqlite_error)?;
+    super::migration::apply_m002(&transaction)?;
     let series_id: String = transaction
         .query_row("SELECT lower(hex(randomblob(16)))", [], |row| row.get(0))
         .map_err(map_sqlite_error)?;
@@ -494,6 +650,7 @@ fn bootstrap_v1(connection: &mut Connection) -> Result<WorkspaceMetadata, Worksp
             "PRAGMA application_id = {APPLICATION_ID}; PRAGMA user_version = {SCHEMA_VERSION};"
         ))
         .map_err(map_sqlite_error)?;
+    before_commit()?;
     transaction.commit().map_err(map_sqlite_error)?;
 
     let series_id = SeriesId::parse(series_id).map_err(|_| WorkspaceError::CorruptWorkspace)?;
@@ -509,7 +666,22 @@ fn bootstrap_v1(connection: &mut Connection) -> Result<WorkspaceMetadata, Worksp
     })
 }
 
-fn validate_database(connection: &Connection) -> Result<WorkspaceMetadata, WorkspaceError> {
+pub(super) fn validate_database(
+    connection: &Connection,
+) -> Result<WorkspaceMetadata, WorkspaceError> {
+    validate_database_inner(connection, true)
+}
+
+fn validate_database_read_only(
+    connection: &Connection,
+) -> Result<WorkspaceMetadata, WorkspaceError> {
+    validate_database_inner(connection, false)
+}
+
+fn validate_database_inner(
+    connection: &Connection,
+    probe_write_constraints: bool,
+) -> Result<WorkspaceMetadata, WorkspaceError> {
     let application_id: i64 = connection
         .pragma_query_value(None, "application_id", |row| row.get(0))
         .map_err(map_corrupt_or_sqlite_error)?;
@@ -526,7 +698,7 @@ fn validate_database(connection: &Connection) -> Result<WorkspaceMetadata, Works
             supported: SCHEMA_VERSION,
         });
     }
-    if version != i64::from(SCHEMA_VERSION) {
+    if version != 1 && version != i64::from(SCHEMA_VERSION) {
         return Err(WorkspaceError::CorruptWorkspace);
     }
 
@@ -557,10 +729,14 @@ fn validate_database(connection: &Connection) -> Result<WorkspaceMetadata, Works
             |row| row.get(0),
         )
         .map_err(map_corrupt_or_sqlite_error)?;
-    if table_count != 4 {
+    let expected_table_count = if version == 1 { 4 } else { 6 };
+    if table_count != expected_table_count {
         return Err(WorkspaceError::CorruptWorkspace);
     }
     validate_schema_columns(connection)?;
+    if version == i64::from(SCHEMA_VERSION) {
+        validate_schema_v2_columns(connection)?;
+    }
 
     if !has_foreign_key_group(
         connection,
@@ -588,7 +764,33 @@ fn validate_database(connection: &Connection) -> Result<WorkspaceMetadata, Works
             ("series_id", "series_id"),
             ("generation_id", "generation_id"),
         ],
-    )? {
+    )? || (version == i64::from(SCHEMA_VERSION)
+        && (!has_foreign_key_group(
+            connection,
+            "generation_operations",
+            "generations",
+            &[
+                ("series_id", "series_id"),
+                ("expected_parent_generation_id", "generation_id"),
+            ],
+        )? || !has_foreign_key_group(
+            connection,
+            "generation_operations",
+            "generations",
+            &[
+                ("series_id", "series_id"),
+                ("result_generation_id", "generation_id"),
+            ],
+        )? || !has_foreign_key_group(
+            connection,
+            "generation_object_refs",
+            "generations",
+            &[
+                ("series_id", "series_id"),
+                ("generation_id", "generation_id"),
+            ],
+        )?))
+    {
         return Err(WorkspaceError::CorruptWorkspace);
     }
 
@@ -627,7 +829,7 @@ fn validate_database(connection: &Connection) -> Result<WorkspaceMetadata, Works
             row.get(0)
         })
         .map_err(map_corrupt_or_sqlite_error)?;
-    if series_count != 1 || generation_count != 1 || current_count != 1 {
+    if series_count != 1 || generation_count < 1 || current_count != 1 {
         return Err(WorkspaceError::CorruptWorkspace);
     }
 
@@ -645,12 +847,16 @@ fn validate_database(connection: &Connection) -> Result<WorkspaceMetadata, Works
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(map_corrupt_or_sqlite_error)?;
-    if current.0 != series_id || current.1 != BOOTSTRAP_GENERATION || created_at_utc_ms < 0 {
+    if current.0 != series_id || created_at_utc_ms < 0 {
         return Err(WorkspaceError::CorruptWorkspace);
     }
     let series_id = SeriesId::parse(series_id).map_err(|_| WorkspaceError::CorruptWorkspace)?;
+    let current_generation =
+        GenerationId::parse(current.1).map_err(|_| WorkspaceError::CorruptWorkspace)?;
     validate_stored_volumes(connection, &series_id)?;
-    validate_volume_constraints(connection, series_id.as_str())?;
+    if probe_write_constraints {
+        validate_volume_constraints(connection, series_id.as_str())?;
+    }
 
     drop(
         connection
@@ -665,10 +871,34 @@ fn validate_database(connection: &Connection) -> Result<WorkspaceMetadata, Works
             id: series_id,
             created_at_utc_ms,
         },
-        schema_version: SCHEMA_VERSION,
-        current_generation: GenerationId::parse(BOOTSTRAP_GENERATION)
-            .map_err(|_| WorkspaceError::CorruptWorkspace)?,
+        schema_version: u32::try_from(version).map_err(|_| WorkspaceError::CorruptWorkspace)?,
+        current_generation,
     })
+}
+
+fn validate_schema_v2_columns(connection: &Connection) -> Result<(), WorkspaceError> {
+    validate_table_columns(
+        connection,
+        "generation_operations",
+        &[
+            ("series_id", "TEXT", 1, 1),
+            ("operation_id", "TEXT", 1, 2),
+            ("request_fingerprint", "BLOB", 1, 0),
+            ("expected_parent_generation_id", "TEXT", 1, 0),
+            ("result_generation_id", "TEXT", 1, 0),
+            ("committed_at_utc_ms", "INTEGER", 1, 0),
+        ],
+    )?;
+    validate_table_columns(
+        connection,
+        "generation_object_refs",
+        &[
+            ("series_id", "TEXT", 1, 1),
+            ("generation_id", "TEXT", 1, 2),
+            ("object_hash", "TEXT", 1, 3),
+            ("byte_len", "INTEGER", 1, 0),
+        ],
+    )
 }
 
 fn validate_schema_columns(connection: &Connection) -> Result<(), WorkspaceError> {
@@ -960,10 +1190,12 @@ fn now_utc_ms() -> Result<i64, WorkspaceError> {
     i64::try_from(duration.as_millis()).map_err(|_| WorkspaceError::StorageFailure)
 }
 
-fn map_io_error(error: std::io::Error) -> WorkspaceError {
+pub(super) fn map_io_error(error: std::io::Error) -> WorkspaceError {
     #[cfg(windows)]
-    if matches!(error.raw_os_error(), Some(5) | Some(32) | Some(33)) {
-        return WorkspaceError::PermissionDenied;
+    match error.raw_os_error() {
+        Some(32 | 33) => return WorkspaceError::Busy,
+        Some(5) => return WorkspaceError::PermissionDenied,
+        _ => {}
     }
 
     match error.kind() {
@@ -993,7 +1225,7 @@ fn map_corrupt_or_sqlite_error(error: rusqlite::Error) -> WorkspaceError {
     }
 }
 
-fn map_sqlite_error(error: rusqlite::Error) -> WorkspaceError {
+pub(super) fn map_sqlite_error(error: rusqlite::Error) -> WorkspaceError {
     match &error {
         rusqlite::Error::SqliteFailure(code, _)
             if code.code == rusqlite::ErrorCode::PermissionDenied
@@ -1002,10 +1234,267 @@ fn map_sqlite_error(error: rusqlite::Error) -> WorkspaceError {
             WorkspaceError::PermissionDenied
         }
         rusqlite::Error::SqliteFailure(code, _)
-            if code.code == rusqlite::ErrorCode::DatabaseBusy =>
+            if matches!(
+                code.code,
+                rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked
+            ) =>
         {
-            WorkspaceError::StorageFailure
+            WorkspaceError::Busy
         }
         _ => WorkspaceError::StorageFailure,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nt_application::workspace::WorkspaceRepository;
+    use std::fs;
+    use std::process::{Command, Stdio};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::{
+        BOOTSTRAP_GENERATION, BOOTSTRAP_MARKER, DATABASE_FILE, SCHEMA_VERSION,
+        SqliteWorkspaceRepository, WorkspaceError, bootstrap_v2, bootstrap_v2_with_hook,
+        configure_new_database, validate_database,
+    };
+    use rusqlite::Connection;
+
+    static NEXT_TEST_DIRECTORY: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn bootstrap_process_exit_child() {
+        let Some(root) = std::env::var_os("NT_STORAGE_TEST_BOOTSTRAP_ROOT") else {
+            return;
+        };
+        SqliteWorkspaceRepository
+            .create(std::path::Path::new(&root))
+            .expect_err("test failpoint exits the process before bootstrap commit");
+        panic!("bootstrap test child unexpectedly returned from Create");
+    }
+
+    #[test]
+    fn public_create_recovers_after_process_exit_before_bootstrap_commit() {
+        let sequence = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "nt-storage-p02-process-bootstrap-retry-{}-{sequence}",
+            std::process::id()
+        ));
+        let child = Command::new(std::env::current_exe().expect("get current test binary"))
+            .arg("bootstrap_process_exit_child")
+            .arg("--nocapture")
+            .env("NT_STORAGE_TEST_BOOTSTRAP_ROOT", &root)
+            .env("NT_STORAGE_TEST_CRASH_BEFORE_BOOTSTRAP_COMMIT", "1")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("start the process-crash fixture child");
+        assert_eq!(
+            child.code(),
+            Some(91),
+            "the child must exit inside the public Create transaction"
+        );
+
+        let marker = root.join(BOOTSTRAP_MARKER);
+        let database_path = root.join(DATABASE_FILE);
+        assert!(marker.is_file(), "interrupted bootstrap keeps its marker");
+        assert!(
+            database_path.is_file(),
+            "interrupted bootstrap leaves its owned database for recovery"
+        );
+        let recovered = SqliteWorkspaceRepository
+            .create(&root)
+            .expect("public Create recovers the rolled-back database");
+        assert_eq!(recovered.schema_version, SCHEMA_VERSION);
+        assert_eq!(recovered.current_generation.as_str(), BOOTSTRAP_GENERATION);
+        assert!(!marker.exists(), "successful recovery removes its marker");
+        assert_eq!(
+            SqliteWorkspaceRepository
+                .open(&root)
+                .expect("open the recovered workspace"),
+            recovered
+        );
+
+        let connection = Connection::open(&database_path).expect("inspect recovered database");
+        let generation_count: i64 = connection
+            .query_row("SELECT count(*) FROM generations", [], |row| row.get(0))
+            .expect("count recovered generations");
+        let current_count: i64 = connection
+            .query_row("SELECT count(*) FROM current_generation", [], |row| {
+                row.get(0)
+            })
+            .expect("count recovered current pointers");
+        assert_eq!(generation_count, 1);
+        assert_eq!(current_count, 1);
+        drop(connection);
+        fs::remove_dir_all(root).expect("remove isolated process-crash fixture");
+    }
+
+    #[test]
+    fn failed_bootstrap_rolls_back_schema_and_retry_creates_one_complete_workspace() {
+        let sequence = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "nt-storage-p02-bootstrap-{}-{sequence}",
+            std::process::id()
+        ));
+        fs::create_dir(&root).expect("create temporary bootstrap directory");
+        let database_path = root.join("series.sqlite3");
+        let mut connection = Connection::open(&database_path).expect("open bootstrap database");
+        configure_new_database(&connection).expect("configure empty database");
+
+        assert_eq!(
+            bootstrap_v2_with_hook(&mut connection, || Err(WorkspaceError::StorageFailure)),
+            Err(WorkspaceError::StorageFailure)
+        );
+        let table_count: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count tables after injected failure");
+        let application_id: i64 = connection
+            .pragma_query_value(None, "application_id", |row| row.get(0))
+            .expect("read format marker after injected failure");
+        let schema_version: i64 = connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .expect("read schema version after injected failure");
+        assert_eq!(table_count, 0);
+        assert_eq!(application_id, 0);
+        assert_eq!(schema_version, 0);
+
+        let created = bootstrap_v2(&mut connection).expect("retry complete bootstrap");
+        let opened = validate_database(&connection).expect("validate retried workspace");
+        assert_eq!(opened, created);
+        assert_eq!(created.current_generation.as_str(), "g0");
+        let generation_count: i64 = connection
+            .query_row("SELECT count(*) FROM generations", [], |row| row.get(0))
+            .expect("count bootstrap generation");
+        let current_count: i64 = connection
+            .query_row("SELECT count(*) FROM current_generation", [], |row| {
+                row.get(0)
+            })
+            .expect("count current pointer");
+        let reference_count: i64 = connection
+            .query_row("SELECT count(*) FROM generation_object_refs", [], |row| {
+                row.get(0)
+            })
+            .expect("count bootstrap object references");
+        assert_eq!(generation_count, 1);
+        assert_eq!(current_count, 1);
+        assert_eq!(reference_count, 0);
+
+        drop(connection);
+        fs::remove_dir_all(root).expect("remove temporary bootstrap directory");
+    }
+
+    #[test]
+    fn public_create_recovers_an_owned_database_after_interrupted_bootstrap() {
+        let sequence = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "nt-storage-p02-public-bootstrap-retry-{}-{sequence}",
+            std::process::id()
+        ));
+        fs::create_dir(&root).expect("create isolated bootstrap root");
+        let marker = root.join(BOOTSTRAP_MARKER);
+        super::create_bootstrap_marker(&marker).expect("create owned bootstrap marker");
+        let database_path = root.join(DATABASE_FILE);
+        let mut connection = Connection::open(&database_path).expect("open interrupted database");
+        super::configure_new_database(&connection).expect("configure interrupted database");
+        assert_eq!(
+            super::bootstrap_v2_with_hook(&mut connection, || {
+                Err(WorkspaceError::StorageFailure)
+            }),
+            Err(WorkspaceError::StorageFailure)
+        );
+        drop(connection);
+
+        let reopened = Connection::open_with_flags(
+            &database_path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .expect("SQLite recovers the rolled-back database before retry");
+        let table_count: i64 = reopened
+            .query_row(
+                "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read application table count after interruption");
+        assert_eq!(table_count, 0);
+        drop(reopened);
+
+        let created = SqliteWorkspaceRepository
+            .create(&root)
+            .expect("public Create retries the marked incomplete bootstrap");
+        assert_eq!(created.schema_version, SCHEMA_VERSION);
+        assert_eq!(created.current_generation.as_str(), BOOTSTRAP_GENERATION);
+        assert!(!marker.exists(), "successful retry removes its marker");
+        let opened = SqliteWorkspaceRepository
+            .open(&root)
+            .expect("open the retried workspace");
+        assert_eq!(opened, created);
+
+        let connection = Connection::open(&database_path).expect("inspect retried workspace");
+        let generation_count: i64 = connection
+            .query_row("SELECT count(*) FROM generations", [], |row| row.get(0))
+            .expect("count bootstrap generations");
+        let current_count: i64 = connection
+            .query_row("SELECT count(*) FROM current_generation", [], |row| {
+                row.get(0)
+            })
+            .expect("count current pointers");
+        assert_eq!(generation_count, 1);
+        assert_eq!(current_count, 1);
+        drop(connection);
+        fs::remove_dir_all(root).expect("remove isolated bootstrap root");
+    }
+
+    #[test]
+    fn bootstrap_recovery_marker_does_not_authorize_removing_unknown_files() {
+        let sequence = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "nt-storage-p02-bootstrap-sentinel-{}-{sequence}",
+            std::process::id()
+        ));
+        fs::create_dir(&root).expect("create isolated bootstrap root");
+        let marker = root.join(BOOTSTRAP_MARKER);
+        super::create_bootstrap_marker(&marker).expect("create owned bootstrap marker");
+        let database_path = root.join(DATABASE_FILE);
+        Connection::open(&database_path).expect("create incomplete database fixture");
+        let sentinel = root.join("user-data.keep");
+        fs::write(&sentinel, b"preserve user data").expect("write sentinel data");
+        let database_before = fs::read(&database_path).expect("read incomplete database bytes");
+
+        assert_eq!(
+            SqliteWorkspaceRepository.create(&root),
+            Err(WorkspaceError::DirectoryNotEmpty)
+        );
+        assert_eq!(
+            fs::read(&sentinel).expect("read preserved sentinel"),
+            b"preserve user data"
+        );
+        assert_eq!(
+            fs::read(&database_path).expect("read preserved database"),
+            database_before
+        );
+        assert!(marker.is_file());
+        fs::remove_dir_all(root).expect("remove isolated bootstrap root");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_lock_violations_are_busy_but_access_denied_is_permission() {
+        assert_eq!(
+            super::map_io_error(std::io::Error::from_raw_os_error(32)),
+            WorkspaceError::Busy
+        );
+        assert_eq!(
+            super::map_io_error(std::io::Error::from_raw_os_error(33)),
+            WorkspaceError::Busy
+        );
+        assert_eq!(
+            super::map_io_error(std::io::Error::from_raw_os_error(5)),
+            WorkspaceError::PermissionDenied
+        );
     }
 }

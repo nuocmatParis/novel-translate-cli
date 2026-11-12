@@ -1,7 +1,9 @@
 use crate::cli::{self, Decision};
 use crate::diagnostics;
-use nt_tui::{DiagnosticStore, TuiError};
+use nt_application::workspace::WorkspaceError;
+use nt_tui::{DiagnosticStore, TuiError, WorkspaceCommands};
 use std::ffi::OsString;
+use std::sync::Arc;
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct ProcessOutput {
@@ -10,10 +12,51 @@ pub(crate) struct ProcessOutput {
     pub(crate) stderr: String,
 }
 
+#[cfg(test)]
 pub(crate) fn run<I, F>(
     args: I,
     stdin_is_terminal: bool,
     stdout_is_terminal: bool,
+    launch_tui: F,
+) -> ProcessOutput
+where
+    I: IntoIterator<Item = OsString>,
+    F: FnOnce(DiagnosticStore) -> Result<(), TuiError>,
+{
+    run_with_optional_workspace(
+        args,
+        stdin_is_terminal,
+        stdout_is_terminal,
+        None,
+        launch_tui,
+    )
+}
+
+pub(crate) fn run_with_workspace<I, F>(
+    args: I,
+    stdin_is_terminal: bool,
+    stdout_is_terminal: bool,
+    workspace: Arc<dyn WorkspaceCommands>,
+    launch_tui: F,
+) -> ProcessOutput
+where
+    I: IntoIterator<Item = OsString>,
+    F: FnOnce(DiagnosticStore) -> Result<(), TuiError>,
+{
+    run_with_optional_workspace(
+        args,
+        stdin_is_terminal,
+        stdout_is_terminal,
+        Some(workspace),
+        launch_tui,
+    )
+}
+
+fn run_with_optional_workspace<I, F>(
+    args: I,
+    stdin_is_terminal: bool,
+    stdout_is_terminal: bool,
+    workspace: Option<Arc<dyn WorkspaceCommands>>,
     launch_tui: F,
 ) -> ProcessOutput
 where
@@ -28,6 +71,24 @@ where
         },
         Decision::Failure(failure) => {
             let (exit_code, stdout, stderr) = failure.render();
+            ProcessOutput {
+                exit_code,
+                stdout,
+                stderr,
+            }
+        }
+        Decision::Workspace(command) => {
+            let operation_result = match workspace.as_ref() {
+                Some(workspace) => match command.operation {
+                    cli::WorkspaceOperation::Create => {
+                        workspace.create_workspace(&command.path)
+                    }
+                    cli::WorkspaceOperation::Open => workspace.open_workspace(&command.path),
+                },
+                None => Err(WorkspaceError::StorageFailure),
+            };
+            let (exit_code, stdout, stderr) =
+                cli::render_workspace_result(&command, operation_result);
             ProcessOutput {
                 exit_code,
                 stdout,

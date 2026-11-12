@@ -1,4 +1,5 @@
 use crate::navigation::Screen;
+use crate::screens::WorkspaceFormSnapshot;
 use crate::screens::empty_state;
 use crate::screens::help_summary;
 use crate::state::{AppState, FocusRegion, MIN_TERMINAL_COLUMNS, MIN_TERMINAL_ROWS};
@@ -11,6 +12,24 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Widget,
 use unicode_segmentation::UnicodeSegmentation;
 
 pub(crate) fn render(buffer: &mut Buffer, area: Rect, state: &AppState) {
+    render_with_optional_workspace(buffer, area, state, None);
+}
+
+pub(crate) fn render_with_workspace(
+    buffer: &mut Buffer,
+    area: Rect,
+    state: &AppState,
+    workspace: &WorkspaceFormSnapshot,
+) {
+    render_with_optional_workspace(buffer, area, state, Some(workspace));
+}
+
+fn render_with_optional_workspace(
+    buffer: &mut Buffer,
+    area: Rect,
+    state: &AppState,
+    workspace: Option<&WorkspaceFormSnapshot>,
+) {
     if !terminal_size_supported(area) {
         render_too_small(buffer, area);
         return;
@@ -29,13 +48,21 @@ pub(crate) fn render(buffer: &mut Buffer, area: Rect, state: &AppState) {
         state.focus_region(),
         navigation_area,
     );
-    render_screen(buffer, state, screen_area);
+    render_screen(buffer, state, screen_area, workspace);
 
-    let footer = Paragraph::new(footer_text(state, area.width));
+    let footer_line = if state.current_screen() == Screen::Overview {
+        workspace.map_or_else(
+            || footer_text(state, area.width),
+            |workspace| Line::from(workspace.footer_text()),
+        )
+    } else {
+        footer_text(state, area.width)
+    };
+    let footer = Paragraph::new(footer_line);
     footer.render(footer_area, buffer);
 
     if state.help_open() {
-        render_help(buffer, area, state);
+        render_help(buffer, area, state, workspace);
         Clear.render(footer_area, buffer);
         Paragraph::new("Esc: Đóng trợ giúp · Ctrl+C: Thoát").render(footer_area, buffer);
     }
@@ -359,7 +386,12 @@ fn footer_text(state: &AppState, width: u16) -> Line<'static> {
     }
 }
 
-fn render_help(buffer: &mut Buffer, area: Rect, state: &AppState) {
+fn render_help(
+    buffer: &mut Buffer,
+    area: Rect,
+    state: &AppState,
+    workspace: Option<&WorkspaceFormSnapshot>,
+) {
     let width = area.width.saturating_sub(4).min(72);
     let height = area.height.saturating_sub(4).min(12);
     let popup = Rect::new(
@@ -374,9 +406,17 @@ fn render_help(buffer: &mut Buffer, area: Rect, state: &AppState) {
         FocusRegion::Navigation => "↑/↓: Chọn màn · Enter: Mở màn · Tab: Chuyển tới Thoát",
         FocusRegion::Exit => "Enter: Thoát · Tab: Quay về Điều hướng",
     };
+    let summary = if state.current_screen() == Screen::Overview {
+        workspace.map_or_else(
+            || help_summary(state.current_screen()).to_owned(),
+            WorkspaceFormSnapshot::help_summary,
+        )
+    } else {
+        help_summary(state.current_screen()).to_owned()
+    };
     let content = format!(
         "{}\n\nSau khi đóng trợ giúp bằng Esc, focus {} sẽ tiếp tục:\n{}",
-        help_summary(state.current_screen()),
+        summary,
         state.focus_region().label(),
         interaction
     );
@@ -404,20 +444,28 @@ fn render_navigation(buffer: &mut Buffer, selected: Screen, focus: FocusRegion, 
     navigation.render(area, buffer);
 }
 
-fn render_screen(buffer: &mut Buffer, state: &AppState, area: Rect) {
+fn render_screen(
+    buffer: &mut Buffer,
+    state: &AppState,
+    area: Rect,
+    workspace: Option<&WorkspaceFormSnapshot>,
+) {
     let screen = state.current_screen();
     let content = empty_state(screen);
+    let workspace = (screen == Screen::Overview).then_some(workspace).flatten();
     let [heading, body_area] =
         Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).areas(area);
-    Paragraph::new(content.heading)
+    let heading_text = workspace.map_or(content.heading, WorkspaceFormSnapshot::heading);
+    Paragraph::new(heading_text)
         .wrap(Wrap { trim: true })
         .block(Block::default().borders(Borders::ALL))
         .render(heading, buffer);
+    let body_text = workspace.map_or_else(|| content.body.to_owned(), WorkspaceFormSnapshot::body);
     render_wrapped_body(
         buffer,
         body_area,
         screen.title(),
-        content.body,
+        &body_text,
         state.scroll_offset(),
     );
 }

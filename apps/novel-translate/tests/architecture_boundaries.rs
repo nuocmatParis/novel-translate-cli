@@ -185,6 +185,7 @@ fn allowed_internal_edge(source: &str, target: &str) -> bool {
             | ("nt-tui", "nt-application")
             | ("novel-translate", "nt-application")
             | ("novel-translate", "nt-tui")
+            | ("novel-translate", "nt-storage")
     )
 }
 

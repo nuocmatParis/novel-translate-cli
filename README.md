@@ -1,5 +1,7 @@
 # novel-translate-cli
 
+![Novel Translate — banner dự án](assets/brand/novel-translate-banner.png)
+
 CLI và TUI dịch light novel **Nhật → Việt**, nhận EPUB và xuất EPUB. Mỗi workspace quản lý một bộ truyện, gồm nhiều tập dùng chung quy ước, thuật ngữ và lịch sử xưng hô theo thời điểm của truyện.
 
 Luồng chính: **nhập EPUB → dịch → review/sửa → xử lý chữ trong ảnh → kiểm tra → xuất EPUB**. Hai chương logic mỗi đợt; hệ thống tự chạy tiếp và lưu kết quả theo khối. Một chương dài có thể cần nhiều request API.
@@ -61,6 +63,17 @@ Script build checkout hiện tại vào `~/.local/bin`; biến `NOVEL_TRANSLATE_
 Workflow CI tạo artifacts Windows/Linux. Workflow đóng gói được kích hoạt thủ công và tạo snapshot cho Windows/Linux/macOS, amd64/arm64; không tự phát hành GitHub Release. Build chéo chưa chứng minh chạy thực tế trên mọi hệ điều hành.
 
 Các ví dụ sau dùng **PowerShell** và script chạy source trong thư mục repo. Trên Linux/macOS, thay `.\scripts\run.ps1` bằng `sh scripts/run.sh`. Đường dẫn và tên model trong ví dụ cần thay theo máy/dịch vụ của bạn.
+
+## Rust port hiện tại (`rewrite/rust`)
+
+Bản Rust đang được port từng phần; các workflow Go hiện tại vẫn là đường chạy đầy đủ. Checkpoint workspace cung cấp lệnh tạo/mở và form tương ứng trong Overview; chưa có nhập EPUB ở checkpoint này. Chạy từ thư mục repo:
+
+```powershell
+cargo run -p novel-translate -- workspace create "D:\Sach\Bộ truyện 01"
+cargo run -p novel-translate -- --json workspace open "D:\Sach\Bộ truyện 01"
+```
+
+`--json` trả một JSON envelope chứa Series ID, schema và generation hiện tại; đầu ra không lặp lại đường dẫn. Khi chạy `cargo run -p novel-translate` trong terminal tương tác từ 80×24, nhấn **c** để tạo hoặc **o** để mở workspace, nhập đường dẫn rồi Enter.
 
 ## 2. Mở TUI
 
