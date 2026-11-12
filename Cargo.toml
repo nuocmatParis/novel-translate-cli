@@ -4,6 +4,7 @@ members = [
     "crates/nt-domain",
     "crates/nt-application",
     "crates/nt-tui",
+    "crates/nt-storage",
 ]
 default-members = ["apps/novel-translate"]
 resolver = "3"
