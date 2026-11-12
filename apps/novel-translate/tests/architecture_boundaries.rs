@@ -3,7 +3,14 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 use std::process::Command;
 
-const PRODUCT_PACKAGES: [&str; 4] = ["novel-translate", "nt-application", "nt-domain", "nt-tui"];
+const PRODUCT_PACKAGES: [&str; 5] = [
+    "novel-translate",
+    "nt-application",
+    "nt-domain",
+    "nt-storage",
+    "nt-tui",
+];
+const ARCHITECTURE_TARGET: &str = "x86_64-pc-windows-msvc";
 
 const CRATES_IO: &str = "registry+https://github.com/rust-lang/crates.io-index";
 const TRACING_PACKAGE_ID: &str =
@@ -27,6 +34,8 @@ struct CargoPackage {
     #[serde(default)]
     id: String,
     name: String,
+    #[serde(default)]
+    version: String,
     #[serde(default)]
     source: Option<String>,
     manifest_path: String,
@@ -171,6 +180,8 @@ fn allowed_internal_edge(source: &str, target: &str) -> bool {
     matches!(
         (source, target),
         ("nt-application", "nt-domain")
+            | ("nt-storage", "nt-application")
+            | ("nt-storage", "nt-domain")
             | ("nt-tui", "nt-application")
             | ("novel-translate", "nt-application")
             | ("novel-translate", "nt-tui")
@@ -186,6 +197,13 @@ fn allowed_external_dependency(
     match owner {
         "nt-domain" => matches!(dependency, "thiserror"),
         "nt-application" => matches!(dependency, "thiserror" | "serde"),
+        "nt-storage" => {
+            dependency == "rusqlite"
+                || (dependency == "sha2" && target.is_none() && kind == DependencyKind::Normal)
+                || (dependency == "windows-sys"
+                    && target == Some("cfg(windows)")
+                    && kind == DependencyKind::Normal)
+        }
         "nt-tui" => {
             matches!(
                 dependency,
@@ -530,6 +548,13 @@ fn package(name: &str, dependencies: Vec<serde_json::Value>) -> serde_json::Valu
 }
 
 fn fixture(packages: Vec<serde_json::Value>) -> String {
+    let mut packages = packages;
+    if !packages
+        .iter()
+        .any(|package| package["name"] == "nt-storage")
+    {
+        packages.push(package("nt-storage", vec![]));
+    }
     let workspace_members: Vec<_> = packages
         .iter()
         .filter_map(|package| package.get("id").and_then(serde_json::Value::as_str))
@@ -542,10 +567,24 @@ fn fixture(packages: Vec<serde_json::Value>) -> String {
 }
 
 fn resolved_fixture(
-    packages: Vec<serde_json::Value>,
+    mut packages: Vec<serde_json::Value>,
     workspace_members: &[&str],
-    nodes: Vec<serde_json::Value>,
+    mut nodes: Vec<serde_json::Value>,
 ) -> String {
+    if !packages
+        .iter()
+        .any(|package| package["name"] == "nt-storage")
+    {
+        packages.push(package("nt-storage", vec![]));
+    }
+    if !workspace_members.contains(&"nt-storage") {
+        let mut members = workspace_members.to_vec();
+        members.push("nt-storage");
+        return resolved_fixture(packages, &members, nodes);
+    }
+    if !nodes.iter().any(|node| node["id"] == "nt-storage") {
+        nodes.push(resolved_node("nt-storage", vec![]));
+    }
     serde_json::json!({
         "packages": packages,
         "workspace_members": workspace_members,
@@ -631,6 +670,8 @@ fn real_cargo_metadata_obeys_product_boundaries() {
             "--locked",
             "--offline",
             "--all-features",
+            "--filter-platform",
+            ARCHITECTURE_TARGET,
             "--manifest-path",
         ])
         .arg(workspace_root.join("Cargo.toml"))
@@ -667,6 +708,50 @@ fn real_cargo_metadata_obeys_product_boundaries() {
             "CLI runtime dependency `{expected_app_dependency}` must be reported as a normal app edge"
         );
     }
+    assert!(
+        report.runtime_edges.iter().any(|edge| {
+            edge.source == "nt-storage"
+                && edge.target == "sha2"
+                && edge.kind == DependencyKind::Normal
+                && edge.target_condition.is_none()
+        }),
+        "object hashing must use sha2 as a normal dependency of nt-storage"
+    );
+    let sha2_package = full_metadata
+        .packages
+        .iter()
+        .find(|package| package.name == "sha2")
+        .expect("the exact SHA-256 package must be resolved");
+    assert_eq!(sha2_package.version, "0.11.1");
+    assert_eq!(sha2_package.source.as_deref(), Some(CRATES_IO));
+}
+
+#[test]
+fn allows_sha2_only_as_a_normal_all_target_storage_dependency() {
+    assert!(allowed_external_dependency(
+        "nt-storage",
+        "sha2",
+        None,
+        DependencyKind::Normal
+    ));
+    assert!(!allowed_external_dependency(
+        "nt-storage",
+        "sha2",
+        Some("cfg(windows)"),
+        DependencyKind::Normal
+    ));
+    assert!(!allowed_external_dependency(
+        "nt-storage",
+        "sha2",
+        None,
+        DependencyKind::Build
+    ));
+    assert!(!allowed_external_dependency(
+        "nt-application",
+        "sha2",
+        None,
+        DependencyKind::Normal
+    ));
 }
 
 #[test]
@@ -736,11 +821,18 @@ fn accepts_allowed_edges_and_uses_real_package_names_for_renamed_dependencies() 
                 None,
             )],
         ),
+        package(
+            "nt-storage",
+            vec![
+                dependency("nt-application", None, None, None, false, &[], None),
+                dependency("nt-domain", None, None, None, false, &[], None),
+            ],
+        ),
     ]);
 
     let report = analyze_metadata(&metadata).expect("parse fixture metadata");
     assert!(report.is_clean(), "{}", report.describe_violations());
-    assert_eq!(report.runtime_edges.len(), 7);
+    assert_eq!(report.runtime_edges.len(), 9);
     assert_eq!(report.dev_edges.len(), 1);
     let renamed_tui = report
         .runtime_edges
@@ -981,12 +1073,16 @@ fn reports_forbidden_internal_edges_with_source_destination_and_path() {
                 None,
             )],
         ),
+        package(
+            "nt-storage",
+            vec![dependency("nt-tui", None, None, None, false, &[], None)],
+        ),
     ]);
 
     let report = analyze_metadata(&metadata).expect("parse fixture metadata");
     assert_eq!(
         report.violations.len(),
-        3,
+        4,
         "{}",
         report.describe_violations()
     );
@@ -995,6 +1091,7 @@ fn reports_forbidden_internal_edges_with_source_destination_and_path() {
     assert!(violations.contains("path=`nt-application -> nt-tui`"));
     assert!(violations.contains("alias=`presentation`"));
     assert!(violations.contains("source=`nt-domain`, destination=`nt-application`"));
+    assert!(violations.contains("source=`nt-storage`, destination=`nt-tui`"));
     assert!(violations.contains("source=`nt-tui`, destination=`novel-translate`"));
 }
 

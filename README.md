@@ -433,6 +433,8 @@ Rust toolchain được ghim ở **1.99.1**, MSRV là **1.88.0**. Kiểm chứng
 
 Rust hiện cung cấp CLI nền tảng và tám màn hình trạng thái trống: **Tổng quan**, **Tập và chương**, **Tác vụ**, **Editor Nhật–Việt**, **Reviewer**, **Skills và ngữ cảnh**, **Ảnh và xuất**, **Cấu hình, báo cáo và trợ giúp**. Các màn nghiệp vụ tạo/mở workspace, nhập EPUB, dịch, review và xuất chưa được nối trong Rust. Dùng ứng dụng Go ở trên cho các công việc với sách; Phase 01 không thay đổi định dạng workspace Go hay tuyên bố feature parity.
 
+Core storage của Rust dùng `series.sqlite3` trong workspace và, khi có file object, lưu theo đường dẫn `objects/<sha256>.blob` tương đối với workspace. Hash là SHA-256 của đúng bytes; tên file trong EPUB không được dùng làm đường dẫn. CLI/TUI Rust hiện chưa tạo hoặc nhập các object này. Cấu trúc Rust này không đổi định dạng workspace Go.
+
 Từ PowerShell tại repo root trên Windows x64:
 
 ```powershell
