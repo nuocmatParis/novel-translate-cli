@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::object::ObjectReference;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SeriesId(String);
 
@@ -71,6 +73,137 @@ impl fmt::Display for GenerationId {
         formatter.write_str(self.as_str())
     }
 }
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct OperationId(String);
+
+impl OperationId {
+    pub fn parse(value: impl Into<String>) -> Result<Self, InvalidOperationId> {
+        let value = value.into();
+        if is_lower_hex_id(&value) {
+            Ok(Self(value))
+        } else {
+            Err(InvalidOperationId)
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for OperationId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GenerationWriteRequest {
+    operation_id: OperationId,
+    expected_parent: GenerationId,
+    generation_id: GenerationId,
+    objects: Vec<ObjectReference>,
+}
+
+impl GenerationWriteRequest {
+    pub fn new(
+        operation_id: OperationId,
+        expected_parent: GenerationId,
+        generation_id: GenerationId,
+        mut objects: Vec<ObjectReference>,
+    ) -> Result<Self, InvalidGenerationWriteRequest> {
+        if generation_id.as_str() == "g0" || generation_id == expected_parent {
+            return Err(InvalidGenerationWriteRequest);
+        }
+
+        objects.sort_by_key(|reference| (reference.hash, reference.byte_len));
+        if objects.windows(2).any(|pair| pair[0].hash == pair[1].hash) {
+            return Err(InvalidGenerationWriteRequest);
+        }
+
+        Ok(Self {
+            operation_id,
+            expected_parent,
+            generation_id,
+            objects,
+        })
+    }
+
+    pub fn operation_id(&self) -> &OperationId {
+        &self.operation_id
+    }
+
+    pub fn expected_parent(&self) -> &GenerationId {
+        &self.expected_parent
+    }
+
+    pub fn generation_id(&self) -> &GenerationId {
+        &self.generation_id
+    }
+
+    pub fn objects(&self) -> &[ObjectReference] {
+        &self.objects
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GenerationCommitResult {
+    pub generation_id: GenerationId,
+    pub replayed: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GenerationCommitError {
+    Busy,
+    StaleGeneration,
+    OperationConflict,
+    CommitOutcomeUnknown,
+    WorkerUnavailable,
+    CorruptWorkspace,
+    StorageFailure,
+}
+
+impl fmt::Display for GenerationCommitError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self {
+            Self::Busy => "The workspace is busy. Try the operation again.",
+            Self::StaleGeneration => "The workspace changed. Reopen it before trying again.",
+            Self::OperationConflict => "This operation ID was already used for different data.",
+            Self::CommitOutcomeUnknown => {
+                "The save result is not known. Reopen the workspace to check its operation ID."
+            }
+            Self::WorkerUnavailable => "The workspace writer is unavailable. Reopen the workspace.",
+            Self::CorruptWorkspace => "The workspace data failed an integrity check.",
+            Self::StorageFailure => "The workspace could not save this change safely.",
+        };
+        formatter.write_str(message)
+    }
+}
+
+impl std::error::Error for GenerationCommitError {}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InvalidOperationId;
+
+impl fmt::Display for InvalidOperationId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("operation ID must be 32 lowercase hexadecimal characters")
+    }
+}
+
+impl std::error::Error for InvalidOperationId {}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InvalidGenerationWriteRequest;
+
+impl fmt::Display for InvalidGenerationWriteRequest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("generation write request has an invalid ID or duplicate object")
+    }
+}
+
+impl std::error::Error for InvalidGenerationWriteRequest {}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SeriesMetadata {

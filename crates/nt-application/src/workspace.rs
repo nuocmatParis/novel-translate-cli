@@ -1,7 +1,7 @@
 use std::fmt;
 use std::path::Path;
 
-use nt_domain::workspace::WorkspaceMetadata;
+pub use nt_domain::workspace::WorkspaceMetadata;
 
 pub trait WorkspaceRepository {
     fn create(&self, root: &Path) -> Result<WorkspaceMetadata, WorkspaceError>;
@@ -30,6 +30,7 @@ pub enum WorkspaceError {
     DirectoryNotEmpty,
     NotFound,
     PermissionDenied,
+    Busy,
     LegacyGoWorkspace,
     UnsupportedFormat,
     NewerSchema { found: u32, supported: u32 },
@@ -57,6 +58,9 @@ impl fmt::Display for WorkspaceError {
             ),
             Self::PermissionDenied => formatter.write_str(
                 "The workspace cannot be accessed with the current permissions. Check local file permissions and close conflicting processes.",
+            ),
+            Self::Busy => formatter.write_str(
+                "The workspace is busy. Close the other process using it and try again.",
             ),
             Self::LegacyGoWorkspace => formatter.write_str(
                 "This is a legacy Go workspace. Create a new Rust workspace and import the EPUB source.",

@@ -240,7 +240,7 @@ fn help_and_version_are_successful_text_before_terminal_setup() {
     let help_stdout = String::from_utf8(help.stdout).expect("help is UTF-8");
     assert!(help_stdout.contains("Usage: novel-translate-cli"));
     assert!(help_stdout.contains("--non-interactive"));
-    assert!(!help_stdout.contains("workspace create"));
+    assert!(help_stdout.contains("workspace create <path>"));
     assert!(help.stderr.is_empty());
 
     let version = run_cli(&["--version"]);
@@ -386,28 +386,20 @@ fn help_or_version_with_an_unknown_argument_is_not_a_success_shortcut() {
 }
 
 #[test]
-fn invalid_business_command_leaves_temporary_workspace_untouched() {
+fn workspace_argument_error_leaves_temporary_directory_untouched() {
     let cwd = TempDir::new();
     fs::write(cwd.path().join("existing-sentinel.txt"), b"keep this file")
         .expect("sentinel file is created in the isolated directory");
     let before = directory_snapshot(cwd.path());
 
-    let output = run_cli_in(
-        &[
-            "--json",
-            "workspace",
-            "create",
-            "private-workspace-sentinel",
-        ],
-        cwd.path(),
-    );
+    let output = run_cli_in(&["--json", "workspace", "create"], cwd.path());
 
     assert_eq!(output.status.code(), Some(2));
     let stdout = String::from_utf8(output.stdout).expect("JSON output is UTF-8");
     assert_eq!(stdout.matches('\n').count(), 1);
     let parsed: Value = serde_json::from_str(&stdout).expect("whole stdout is one JSON object");
+    assert_eq!(parsed["command"], "workspace create");
     assert_eq!(parsed["state"], "failed");
-    assert!(!stdout.contains("private-workspace-sentinel"));
-    assert!(!String::from_utf8_lossy(&output.stderr).contains("private-workspace-sentinel"));
+    assert!(!stdout.contains("existing-sentinel"));
     assert_eq!(directory_snapshot(cwd.path()), before);
 }

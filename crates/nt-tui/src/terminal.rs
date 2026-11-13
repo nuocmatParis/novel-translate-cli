@@ -1,4 +1,6 @@
+use crate::WorkspaceCommands;
 use crate::input::{UiAction, dispatch_event, is_shutdown_request};
+use crate::screens::{WorkspaceForm, WorkspaceFormSnapshot};
 use crate::state::AppState;
 #[cfg(windows)]
 use crate::windows_input::WindowsInputReader;
@@ -16,6 +18,7 @@ use ratatui::buffer::{Buffer, CellWidth};
 use ratatui::layout::Rect;
 use std::io::{self, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
 use std::time::Duration;
 
 const INPUT_POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -29,6 +32,14 @@ trait TerminalDriver {
     fn leave_alternate_screen(&mut self) -> io::Result<()>;
     fn disable_raw_mode(&mut self) -> io::Result<()>;
     fn draw_shell(&mut self, area: Rect, state: &AppState) -> io::Result<()>;
+    fn draw_shell_with_workspace(
+        &mut self,
+        area: Rect,
+        state: &AppState,
+        _workspace: &WorkspaceFormSnapshot,
+    ) -> io::Result<()> {
+        self.draw_shell(area, state)
+    }
     fn read_event(&mut self) -> io::Result<Event>;
     fn poll_event(&mut self, _timeout: Duration) -> io::Result<Option<Event>> {
         self.read_event().map(Some)
@@ -42,17 +53,31 @@ pub fn run_shell() -> Result<(), TuiError> {
     run_shell_with_driver(driver)
 }
 
+pub fn run_shell_with_workspace(commands: Arc<dyn WorkspaceCommands>) -> Result<(), TuiError> {
+    let driver = CrosstermTerminal::new().map_err(|_| TuiError::new(TuiErrorKind::EventRead))?;
+    run_shell_with_driver_and_workspace(driver, Some(commands))
+}
+
 fn run_shell_with_driver<D: TerminalDriver>(driver: D) -> Result<(), TuiError> {
+    run_shell_with_driver_and_workspace(driver, None)
+}
+
+fn run_shell_with_driver_and_workspace<D: TerminalDriver>(
+    driver: D,
+    commands: Option<Arc<dyn WorkspaceCommands>>,
+) -> Result<(), TuiError> {
     run_with_driver(driver, |driver| {
         let mut state = AppState::default();
+        let mut workspace_form = WorkspaceForm::new(commands);
         let mut rendered_area = None;
         let mut redraw_needed = true;
         loop {
+            let workspace_changed = workspace_form.poll_result();
             let area = driver.terminal_area().map_err(|_| TuiErrorKind::Render)?;
-            if redraw_needed || rendered_area != Some(area) {
+            if redraw_needed || rendered_area != Some(area) || workspace_changed {
                 refresh_scroll_layout(&mut state, area);
                 driver
-                    .draw_shell(area, &state)
+                    .draw_shell_with_workspace(area, &state, &workspace_form.snapshot())
                     .map_err(|_| TuiErrorKind::Render)?;
                 rendered_area = Some(area);
                 redraw_needed = false;
@@ -79,7 +104,9 @@ fn run_shell_with_driver<D: TerminalDriver>(driver: D) -> Result<(), TuiError> {
             }
             let screen_before_dispatch = state.current_screen();
             let scroll_offset_before_dispatch = state.scroll_offset();
-            match dispatch_event(&mut state, &event, None, None) {
+            let focused_control = (state.current_screen() == crate::navigation::Screen::Overview)
+                .then_some(&mut workspace_form as &mut dyn crate::input::EventLayer);
+            match dispatch_event(&mut state, &event, None, focused_control) {
                 UiAction::Shutdown => return Ok(()),
                 UiAction::None | UiAction::RouteOpened(_) => {}
             }
@@ -284,6 +311,16 @@ impl TerminalDriver for CrosstermTerminal {
         draw_shell_to(&mut stdout, area, state)
     }
 
+    fn draw_shell_with_workspace(
+        &mut self,
+        area: Rect,
+        state: &AppState,
+        workspace: &WorkspaceFormSnapshot,
+    ) -> io::Result<()> {
+        let mut stdout = io::stdout();
+        draw_shell_to_with_workspace(&mut stdout, area, state, workspace)
+    }
+
     fn read_event(&mut self) -> io::Result<Event> {
         #[cfg(windows)]
         {
@@ -313,9 +350,23 @@ impl TerminalDriver for CrosstermTerminal {
 
 fn draw_shell_to<W: Write>(writer: &mut W, area: Rect, state: &AppState) -> io::Result<()> {
     let buffer = render_shell_buffer(area, state);
+    draw_buffer(writer, area, &buffer)
+}
+
+fn draw_shell_to_with_workspace<W: Write>(
+    writer: &mut W,
+    area: Rect,
+    state: &AppState,
+    workspace: &WorkspaceFormSnapshot,
+) -> io::Result<()> {
+    let buffer = render_shell_buffer_with_workspace(area, state, workspace);
+    draw_buffer(writer, area, &buffer)
+}
+
+fn draw_buffer<W: Write>(writer: &mut W, area: Rect, buffer: &Buffer) -> io::Result<()> {
     queue!(writer, Clear(ClearType::All))?;
     for row in 0..area.height {
-        let line = buffer_row_text(&buffer, area, row);
+        let line = buffer_row_text(buffer, area, row);
         queue!(writer, MoveTo(area.x, area.y + row), Print(line))?;
     }
     // Leave the cursor at a known point; terminal ownership remains with this module.
@@ -343,6 +394,16 @@ fn render_shell_buffer(area: Rect, state: &AppState) -> Buffer {
     buffer
 }
 
+fn render_shell_buffer_with_workspace(
+    area: Rect,
+    state: &AppState,
+    workspace: &WorkspaceFormSnapshot,
+) -> Buffer {
+    let mut buffer = Buffer::empty(area);
+    crate::rendering::render_with_workspace(&mut buffer, area, state, workspace);
+    buffer
+}
+
 #[cfg(test)]
 fn buffer_text(buffer: &Buffer, area: Rect) -> String {
     (0..area.height)
@@ -359,12 +420,15 @@ fn buffer_text(buffer: &Buffer, area: Rect) -> String {
 mod tests {
     use super::{
         TerminalDriver, TerminalSession, buffer_row_text, buffer_text, render_shell_buffer,
-        run_shell_with_driver, run_with_driver,
+        render_shell_buffer_with_workspace, run_shell_with_driver, run_with_driver,
     };
     use crate::TuiErrorKind;
+    use crate::WorkspaceCommands;
     use crate::input::is_shutdown_request;
+    use crate::screens::WorkspaceForm;
     use crate::state::AppState;
     use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+    use nt_application::workspace::{WorkspaceError, WorkspaceMetadata};
     use ratatui::buffer::CellWidth;
     use ratatui::layout::Rect;
     use ratatui::widgets::{Paragraph, Widget};
@@ -372,7 +436,9 @@ mod tests {
     use std::collections::{HashSet, VecDeque};
     use std::io;
     use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
+    use std::path::Path;
     use std::rc::Rc;
+    use std::sync::Arc;
     use std::sync::Mutex;
     use std::time::Duration;
 
@@ -672,6 +738,29 @@ mod tests {
         assert!(!rendered.contains("\u{1b}[?25h"));
     }
 
+    struct RenderWorkspaceCommands;
+
+    impl WorkspaceCommands for RenderWorkspaceCommands {
+        fn create_workspace(&self, _path: &Path) -> Result<WorkspaceMetadata, WorkspaceError> {
+            Err(WorkspaceError::StorageFailure)
+        }
+
+        fn open_workspace(&self, _path: &Path) -> Result<WorkspaceMetadata, WorkspaceError> {
+            Err(WorkspaceError::NotFound)
+        }
+    }
+
+    #[test]
+    fn workspace_form_is_visible_at_the_minimum_supported_terminal_size() {
+        let area = Rect::new(0, 0, 80, 24);
+        let workspace = WorkspaceForm::new(Some(Arc::new(RenderWorkspaceCommands))).snapshot();
+        let buffer = render_shell_buffer_with_workspace(area, &AppState::default(), &workspace);
+        let rendered = buffer_text(&buffer, area);
+
+        assert!(rendered.contains("Chưa mở workspace"));
+        assert!(rendered.contains("C: Tạo workspace"));
+        assert!(rendered.contains("O: Mở workspace"));
+    }
     #[test]
     fn buffer_renderer_never_emits_a_cursor_restore_command() {
         let area = Rect::new(0, 0, 80, 24);

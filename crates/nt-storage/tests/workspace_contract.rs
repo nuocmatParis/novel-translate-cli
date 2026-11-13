@@ -95,7 +95,7 @@ fn create_and_open_round_trip_series_schema_and_bootstrap_generation() {
     let repository = SqliteWorkspaceRepository;
 
     let created = create_workspace(&repository, &root).expect("create Rust workspace");
-    assert_eq!(created.schema_version, 1);
+    assert_eq!(created.schema_version, 2);
     assert_eq!(created.current_generation.as_str(), "g0");
     assert_eq!(created.series.id.as_str().len(), 32);
     assert!(created.series.created_at_utc_ms > 0);
@@ -130,7 +130,7 @@ fn create_and_open_round_trip_series_schema_and_bootstrap_generation() {
         )
         .expect("count current pointers");
     assert_eq!(application_id, APPLICATION_ID);
-    assert_eq!(schema_version, 1);
+    assert_eq!(schema_version, 2);
     assert_eq!(series_count, 1);
     assert_eq!(bootstrap_count, 1);
     assert_eq!(current_count, 1);
@@ -208,7 +208,7 @@ fn open_distinguishes_missing_legacy_corrupt_and_newer_workspaces_without_mutati
         .pragma_update(None, "application_id", APPLICATION_ID)
         .expect("set Rust marker");
     connection
-        .pragma_update(None, "user_version", 2)
+        .pragma_update(None, "user_version", 3)
         .expect("set future schema version");
     drop(connection);
     let newer_bytes = fs::read(&newer_path).expect("capture future schema bytes");
@@ -219,8 +219,8 @@ fn open_distinguishes_missing_legacy_corrupt_and_newer_workspaces_without_mutati
     assert_eq!(
         open_workspace(&repository, &newer).expect_err("newer schema must fail"),
         WorkspaceError::NewerSchema {
-            found: 2,
-            supported: 1,
+            found: 3,
+            supported: 2,
         }
     );
     assert_eq!(
@@ -253,10 +253,10 @@ fn rejected_newer_wal_workspace_preserves_every_source_file() {
     let old_version: i64 = reader
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .expect("read version from reader snapshot");
-    assert_eq!(old_version, 1);
+    assert_eq!(old_version, 2);
 
     writer
-        .pragma_update(None, "user_version", 2)
+        .pragma_update(None, "user_version", 3)
         .expect("commit newer schema version into WAL");
     drop(writer);
     let wal_path = sidecar_path(&database_path, "-wal");
@@ -270,13 +270,13 @@ fn rejected_newer_wal_workspace_preserves_every_source_file() {
         open_workspace(&SqliteWorkspaceRepository, &root)
             .expect_err("Open must read the newer committed WAL state"),
         WorkspaceError::NewerSchema {
-            found: 2,
-            supported: 1,
+            found: 3,
+            supported: 2,
         }
     );
     assert_eq!(directory_snapshot(&root), before);
     drop(reader);
-    assert_eq!(created.schema_version, 1);
+    assert_eq!(created.schema_version, 2);
 }
 
 #[test]
@@ -465,7 +465,7 @@ fn open_rejects_short_and_long_volume_ids_in_stored_metadata() {
 
 #[cfg(windows)]
 #[test]
-fn open_reports_permission_denied_when_a_process_blocks_write_access() {
+fn open_reports_busy_when_another_process_blocks_write_access() {
     use std::os::windows::fs::OpenOptionsExt;
 
     let temp = TestDirectory::new();
@@ -483,7 +483,7 @@ fn open_reports_permission_denied_when_a_process_blocks_write_access() {
     assert_eq!(
         open_workspace(&SqliteWorkspaceRepository, &root)
             .expect_err("open must report the unavailable writer access"),
-        WorkspaceError::PermissionDenied
+        WorkspaceError::Busy
     );
     drop(held);
     assert_eq!(
@@ -494,7 +494,7 @@ fn open_reports_permission_denied_when_a_process_blocks_write_access() {
 
 #[cfg(windows)]
 #[test]
-fn open_reports_permission_denied_when_a_process_blocks_read_access() {
+fn open_reports_busy_when_another_process_blocks_read_access() {
     use std::os::windows::fs::OpenOptionsExt;
 
     let temp = TestDirectory::new();
@@ -512,7 +512,7 @@ fn open_reports_permission_denied_when_a_process_blocks_read_access() {
     assert_eq!(
         open_workspace(&SqliteWorkspaceRepository, &root)
             .expect_err("open must report the unavailable read access"),
-        WorkspaceError::PermissionDenied
+        WorkspaceError::Busy
     );
     drop(held);
     assert_eq!(

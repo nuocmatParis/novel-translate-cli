@@ -1,16 +1,21 @@
 mod bootstrap;
 mod cli;
 mod diagnostics;
+mod workspace;
 
 use nt_tui::{DiagnosticStore, TuiError};
 use std::io::{self, IsTerminal, Write};
+use std::sync::Arc;
 
 fn main() {
-    let result = bootstrap::run(
+    let workspace: Arc<dyn nt_tui::WorkspaceCommands> = Arc::new(workspace::WorkspaceService);
+    let tui_workspace = Arc::clone(&workspace);
+    let result = bootstrap::run_with_workspace(
         std::env::args_os(),
         io::stdin().is_terminal(),
         io::stdout().is_terminal(),
-        launch_tui,
+        workspace,
+        move |diagnostics| launch_tui(diagnostics, tui_workspace),
     );
 
     let mut stdout = io::stdout().lock();
@@ -27,6 +32,9 @@ fn main() {
 }
 
 // The app owns panic/logging configuration; nt-tui owns the terminal lifecycle.
-fn launch_tui(_diagnostics: DiagnosticStore) -> Result<(), TuiError> {
-    nt_tui::run_shell()
+fn launch_tui(
+    _diagnostics: DiagnosticStore,
+    workspace: Arc<dyn nt_tui::WorkspaceCommands>,
+) -> Result<(), TuiError> {
+    nt_tui::run_shell_with_workspace(workspace)
 }
