@@ -3,7 +3,15 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 use std::process::Command;
 
-const PRODUCT_PACKAGES: [&str; 5] = [
+const PRODUCT_PACKAGES: [&str; 6] = [
+    "novel-translate",
+    "nt-application",
+    "nt-domain",
+    "nt-epub",
+    "nt-storage",
+    "nt-tui",
+];
+const FIXTURE_PRODUCT_PACKAGES: [&str; 5] = [
     "novel-translate",
     "nt-application",
     "nt-domain",
@@ -198,6 +206,10 @@ fn allowed_external_dependency(
     match owner {
         "nt-domain" => matches!(dependency, "thiserror"),
         "nt-application" => matches!(dependency, "thiserror" | "serde"),
+        "nt-epub" => {
+            dependency == "zip"
+                || (dependency == "roxmltree" && target.is_none() && kind == DependencyKind::Normal)
+        }
         "nt-storage" => {
             dependency == "rusqlite"
                 || (dependency == "sha2" && target.is_none() && kind == DependencyKind::Normal)
@@ -227,7 +239,46 @@ fn allowed_external_dependency(
     }
 }
 
+#[test]
+fn allows_xml_parser_only_as_an_unconditional_epub_runtime_dependency() {
+    assert!(allowed_external_dependency(
+        "nt-epub",
+        "roxmltree",
+        None,
+        DependencyKind::Normal,
+    ));
+    assert!(!allowed_external_dependency(
+        "nt-domain",
+        "roxmltree",
+        None,
+        DependencyKind::Normal,
+    ));
+    assert!(!allowed_external_dependency(
+        "nt-epub",
+        "roxmltree",
+        Some("cfg(windows)"),
+        DependencyKind::Normal,
+    ));
+    assert!(!allowed_external_dependency(
+        "nt-epub",
+        "roxmltree",
+        None,
+        DependencyKind::Build,
+    ));
+}
+
 fn analyze_metadata(json: &str) -> Result<ArchitectureReport, serde_json::Error> {
+    analyze_metadata_with_packages(json, &PRODUCT_PACKAGES)
+}
+
+fn analyze_fixture_metadata(json: &str) -> Result<ArchitectureReport, serde_json::Error> {
+    analyze_metadata_with_packages(json, &FIXTURE_PRODUCT_PACKAGES)
+}
+
+fn analyze_metadata_with_packages(
+    json: &str,
+    product_packages: &[&str],
+) -> Result<ArchitectureReport, serde_json::Error> {
     // Inspect all member declarations, including optional and target-specific
     // edges, then use Cargo's resolved graph to verify package identity/source
     // and catch a product crate hidden behind an external package.
@@ -241,7 +292,7 @@ fn analyze_metadata(json: &str) -> Result<ArchitectureReport, serde_json::Error>
         metadata
             .packages
             .iter()
-            .filter(|package| PRODUCT_PACKAGES.contains(&package.name.as_str()))
+            .filter(|package| product_packages.contains(&package.name.as_str()))
             .map(|package| package.id.clone())
             .collect()
     } else {
@@ -252,7 +303,7 @@ fn analyze_metadata(json: &str) -> Result<ArchitectureReport, serde_json::Error>
         .iter()
         .filter(|package| workspace_member_ids.contains(&package.id))
         .collect();
-    let expected_packages: BTreeSet<_> = PRODUCT_PACKAGES.into_iter().collect();
+    let expected_packages: BTreeSet<_> = product_packages.iter().copied().collect();
     let actual_packages: BTreeSet<_> = workspace_packages
         .iter()
         .map(|package| package.name.as_str())
@@ -831,7 +882,7 @@ fn accepts_allowed_edges_and_uses_real_package_names_for_renamed_dependencies() 
         ),
     ]);
 
-    let report = analyze_metadata(&metadata).expect("parse fixture metadata");
+    let report = analyze_fixture_metadata(&metadata).expect("parse fixture metadata");
     assert!(report.is_clean(), "{}", report.describe_violations());
     assert_eq!(report.runtime_edges.len(), 9);
     assert_eq!(report.dev_edges.len(), 1);
@@ -891,7 +942,7 @@ fn accepts_crossterm_winapi_only_as_a_normal_windows_tui_dependency() {
         )
     };
 
-    let windows = analyze_metadata(&package_set("cfg(windows)", None))
+    let windows = analyze_fixture_metadata(&package_set("cfg(windows)", None))
         .expect("parse Windows adapter fixture");
     assert!(windows.is_clean(), "{}", windows.describe_violations());
     assert_eq!(windows.runtime_edges.len(), 1);
@@ -900,13 +951,13 @@ fn accepts_crossterm_winapi_only_as_a_normal_windows_tui_dependency() {
         Some("cfg(windows)")
     );
 
-    let unix = analyze_metadata(&package_set("cfg(unix)", None))
+    let unix = analyze_fixture_metadata(&package_set("cfg(unix)", None))
         .expect("parse non-Windows adapter fixture");
     assert_eq!(unix.violations.len(), 1);
     assert!(unix.violations[0].contains("owner=`nt-tui`, package=`crossterm_winapi`"));
     assert!(unix.violations[0].contains("target=cfg(unix)"));
 
-    let build = analyze_metadata(&package_set("cfg(windows)", Some("build")))
+    let build = analyze_fixture_metadata(&package_set("cfg(windows)", Some("build")))
         .expect("parse build-dependency adapter fixture");
     assert_eq!(build.violations.len(), 1);
     assert!(build.violations[0].contains("kind=build, target=cfg(windows)"));
@@ -946,7 +997,7 @@ fn matches_hyphenated_package_and_alias_names_to_cargo_resolve_names() {
         ],
     );
 
-    let report = analyze_metadata(&metadata).expect("parse resolved metadata fixture");
+    let report = analyze_fixture_metadata(&metadata).expect("parse resolved metadata fixture");
     assert!(report.is_clean(), "{}", report.describe_violations());
     assert_eq!(report.runtime_edges.len(), 2);
 }
@@ -985,7 +1036,7 @@ fn matches_a_reused_alias_by_resolved_target_and_dependency_kind() {
         ],
     );
     let target_report =
-        analyze_metadata(&target_metadata).expect("parse target-specific metadata fixture");
+        analyze_fixture_metadata(&target_metadata).expect("parse target-specific metadata fixture");
     assert!(
         target_report.is_clean(),
         "{}",
@@ -1023,7 +1074,8 @@ fn matches_a_reused_alias_by_resolved_target_and_dependency_kind() {
             ),
         ],
     );
-    let kind_report = analyze_metadata(&kind_metadata).expect("parse dependency-kind fixture");
+    let kind_report =
+        analyze_fixture_metadata(&kind_metadata).expect("parse dependency-kind fixture");
     assert!(
         kind_report.is_clean(),
         "{}",
@@ -1080,7 +1132,7 @@ fn reports_forbidden_internal_edges_with_source_destination_and_path() {
         ),
     ]);
 
-    let report = analyze_metadata(&metadata).expect("parse fixture metadata");
+    let report = analyze_fixture_metadata(&metadata).expect("parse fixture metadata");
     assert_eq!(
         report.violations.len(),
         4,
@@ -1107,7 +1159,7 @@ fn does_not_confuse_a_same_named_external_path_with_a_workspace_crate() {
         package("nt-tui", vec![]),
     ]);
 
-    let report = analyze_metadata(&metadata).expect("parse fixture metadata");
+    let report = analyze_fixture_metadata(&metadata).expect("parse fixture metadata");
     assert_eq!(report.violations.len(), 1);
     assert!(report.violations[0].contains("owner=`novel-translate`, package=`nt-domain`"));
 }
@@ -1131,7 +1183,7 @@ fn rejects_an_allowlisted_external_package_declared_from_a_path() {
         package("nt-tui", vec![]),
     ]);
 
-    let report = analyze_metadata(&metadata).expect("parse fixture metadata");
+    let report = analyze_fixture_metadata(&metadata).expect("parse fixture metadata");
     assert_eq!(
         report.violations.len(),
         1,
@@ -1188,7 +1240,7 @@ fn rejects_a_registry_patch_resolved_to_a_path_crate_that_depends_on_product_ui(
         ],
     );
 
-    let report = analyze_metadata(&metadata).expect("parse fixture metadata");
+    let report = analyze_fixture_metadata(&metadata).expect("parse fixture metadata");
     let violations = report.describe_violations();
     assert!(
         violations.contains("resolved external package identity/source is not approved"),
@@ -1233,7 +1285,7 @@ fn rejects_unapproved_normal_and_target_specific_build_dependencies() {
         ),
     ]);
 
-    let report = analyze_metadata(&metadata).expect("parse fixture metadata");
+    let report = analyze_fixture_metadata(&metadata).expect("parse fixture metadata");
     assert_eq!(
         report.violations.len(),
         3,
