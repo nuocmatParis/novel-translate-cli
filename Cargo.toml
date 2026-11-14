@@ -5,6 +5,7 @@ members = [
     "crates/nt-application",
     "crates/nt-tui",
     "crates/nt-storage",
+    "crates/nt-epub",
 ]
 default-members = ["apps/novel-translate"]
 resolver = "3"
