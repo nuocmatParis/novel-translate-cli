@@ -687,7 +687,11 @@ version = "0.1.0"
 name = "nt-epub"
 version = "0.1.0"
 dependencies = [
+ "nt-application",
+ "nt-domain",
  "roxmltree",
+ "sha2",
+ "unicode-segmentation",
  "zip",
 ]
 

@@ -11,6 +11,7 @@ mod inventory;
 mod navigation;
 mod package;
 mod path;
+mod source_extract;
 mod xml;
 
 pub use archive::{ArchiveEntry, ArchiveError, ArchiveLimits, EntryId, EpubZip};
@@ -21,3 +22,7 @@ pub use inventory::{
     Resource, ResourceEncryption, SpineContentKind, SpineItem,
 };
 pub use path::{ArchivePathError, canonical_archive_path, windows_materialization_key};
+pub use source_extract::{
+    CoverageDomain, PARSER_VERSION, SourceAnchor, SourceDiagnostic, SourceDocument,
+    SourceExtraction, SourceExtractionError, extract_source,
+};

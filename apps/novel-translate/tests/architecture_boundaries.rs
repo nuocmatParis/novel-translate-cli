@@ -188,6 +188,7 @@ fn allowed_internal_edge(source: &str, target: &str) -> bool {
     matches!(
         (source, target),
         ("nt-application", "nt-domain")
+            | ("nt-epub", "nt-domain")
             | ("nt-storage", "nt-application")
             | ("nt-storage", "nt-domain")
             | ("nt-tui", "nt-application")
@@ -209,6 +210,9 @@ fn allowed_external_dependency(
         "nt-epub" => {
             dependency == "zip"
                 || (dependency == "roxmltree" && target.is_none() && kind == DependencyKind::Normal)
+                || (matches!(dependency, "sha2" | "unicode-segmentation")
+                    && target.is_none()
+                    && kind == DependencyKind::Normal)
         }
         "nt-storage" => {
             dependency == "rusqlite"
@@ -237,6 +241,68 @@ fn allowed_external_dependency(
         ),
         _ => false,
     }
+}
+
+fn allowed_epub_domain_edge(kind: DependencyKind, target: Option<&str>) -> bool {
+    kind == DependencyKind::Normal && target.is_none()
+}
+
+#[test]
+fn allows_epub_source_dependencies_only_as_exact_normal_runtime_edges() {
+    assert!(allowed_internal_edge("nt-epub", "nt-domain"));
+    assert!(!allowed_internal_edge("nt-domain", "nt-epub"));
+    assert!(allowed_epub_domain_edge(DependencyKind::Normal, None));
+    assert!(!allowed_epub_domain_edge(
+        DependencyKind::Normal,
+        Some("cfg(windows)")
+    ));
+    assert!(!allowed_epub_domain_edge(DependencyKind::Build, None));
+    assert!(!allowed_epub_domain_edge(DependencyKind::Dev, None));
+
+    for dependency in ["sha2", "unicode-segmentation"] {
+        assert!(allowed_external_dependency(
+            "nt-epub",
+            dependency,
+            None,
+            DependencyKind::Normal,
+        ));
+        assert!(!allowed_external_dependency(
+            "nt-epub",
+            dependency,
+            Some("cfg(windows)"),
+            DependencyKind::Normal,
+        ));
+        assert!(!allowed_external_dependency(
+            "nt-epub",
+            dependency,
+            None,
+            DependencyKind::Build,
+        ));
+        assert!(!allowed_external_dependency(
+            "nt-epub",
+            dependency,
+            None,
+            DependencyKind::Dev,
+        ));
+        assert!(!allowed_external_dependency(
+            "nt-domain",
+            dependency,
+            None,
+            DependencyKind::Normal,
+        ));
+        assert!(!allowed_external_dependency(
+            "nt-application",
+            dependency,
+            None,
+            DependencyKind::Normal,
+        ));
+    }
+    assert!(allowed_external_dependency(
+        "nt-tui",
+        "unicode-segmentation",
+        None,
+        DependencyKind::Normal,
+    ));
 }
 
 #[test]
@@ -369,7 +435,11 @@ fn analyze_metadata_with_packages(
                         })
                     });
             if is_workspace_package {
-                if !allowed_internal_edge(&edge.source, &edge.target) {
+                if !allowed_internal_edge(&edge.source, &edge.target)
+                    || (edge.source == "nt-epub"
+                        && edge.target == "nt-domain"
+                        && !allowed_epub_domain_edge(edge.kind, edge.target_condition.as_deref()))
+                {
                     report.violations.push(format!(
                         "forbidden internal dependency: source=`{}`, destination=`{}`; {}",
                         edge.source,
@@ -769,6 +839,23 @@ fn real_cargo_metadata_obeys_product_boundaries() {
         }),
         "object hashing must use sha2 as a normal dependency of nt-storage"
     );
+    let epub_domain_edge = report
+        .runtime_edges
+        .iter()
+        .find(|edge| edge.source == "nt-epub" && edge.target == "nt-domain")
+        .expect("EPUB source extraction must use the domain source-range contract");
+    assert_eq!(epub_domain_edge.kind, DependencyKind::Normal);
+    assert!(epub_domain_edge.target_condition.is_none());
+    assert!(epub_domain_edge.package_source.is_none());
+    assert!(epub_domain_edge.package_path.is_some());
+    for dependency in ["sha2", "unicode-segmentation"] {
+        assert!(report.runtime_edges.iter().any(|edge| {
+            edge.source == "nt-epub"
+                && edge.target == dependency
+                && edge.kind == DependencyKind::Normal
+                && edge.target_condition.is_none()
+        }));
+    }
     let sha2_package = full_metadata
         .packages
         .iter()
@@ -776,6 +863,13 @@ fn real_cargo_metadata_obeys_product_boundaries() {
         .expect("the exact SHA-256 package must be resolved");
     assert_eq!(sha2_package.version, "0.11.1");
     assert_eq!(sha2_package.source.as_deref(), Some(CRATES_IO));
+    let unicode_package = full_metadata
+        .packages
+        .iter()
+        .find(|package| package.name == "unicode-segmentation")
+        .expect("the exact grapheme segmentation package must be resolved");
+    assert_eq!(unicode_package.version, "1.13.3");
+    assert_eq!(unicode_package.source.as_deref(), Some(CRATES_IO));
 }
 
 #[test]
