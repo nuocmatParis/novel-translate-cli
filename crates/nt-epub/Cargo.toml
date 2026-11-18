@@ -13,7 +13,7 @@ nt-domain = { path = "../nt-domain" }
 roxmltree = { version = "=0.21.2", default-features = false, features = ["std", "positions"] }
 sha2 = { version = "=0.11.1", default-features = false }
 unicode-segmentation = "=1.13.3"
-zip = { version = "=9.5.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "=9.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [dev-dependencies]
 nt-application = { path = "../nt-application" }
