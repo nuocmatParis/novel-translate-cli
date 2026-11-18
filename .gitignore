@@ -62,8 +62,9 @@ __pycache__/
 /workspace-laptop/
 
 # Documentation
-docs/
 .docs/
+/PLAN.md
+/docs/roadmap/evidence/
 
 # Books, light novels & EPUBs
 *.epub
