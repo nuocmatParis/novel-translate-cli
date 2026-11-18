@@ -14,7 +14,7 @@ const DATABASE_FILE: &str = "series.sqlite3";
 const LEGACY_GO_MARKER: &str = "workspace.yaml";
 const BOOTSTRAP_MARKER: &str = ".nt-bootstrap-incomplete";
 const BOOTSTRAP_MARKER_CONTENT: &[u8] = b"NT-P02-M002-BOOTSTRAP-V1\n";
-pub(super) const SCHEMA_VERSION: u32 = 2;
+pub(super) const SCHEMA_VERSION: u32 = 3;
 pub(super) const APPLICATION_ID: i64 = 0x4E54_5253;
 const BOOTSTRAP_GENERATION: &str = "g0";
 const BUSY_TIMEOUT: Duration = Duration::from_secs(2);
@@ -75,6 +75,11 @@ impl WorkspaceRepository for SqliteWorkspaceRepository {
 
         if prepared.recovering_bootstrap {
             if let Some(metadata) = recover_committed_bootstrap(&prepared.path)? {
+                let metadata = if metadata.schema_version < SCHEMA_VERSION {
+                    self.open(&prepared.path)?
+                } else {
+                    metadata
+                };
                 let _ = fs::remove_file(&marker_path);
                 return Ok(metadata);
             }
@@ -169,7 +174,11 @@ impl WorkspaceRepository for SqliteWorkspaceRepository {
         if preflight_metadata.schema_version == 1 {
             super::migration::migrate_v1_to_v2(&root, &mut connection)?;
         }
+        if preflight_metadata.schema_version < SCHEMA_VERSION {
+            super::migration::migrate_v2_to_v3(&root, &mut connection)?;
+        }
         let metadata = validate_database(&connection)?;
+        super::import::verify_import_integrity(&root, &connection, &metadata.series.id)?;
         Ok(metadata)
     }
 }
@@ -442,7 +451,9 @@ fn recover_committed_bootstrap(root: &Path) -> Result<Option<WorkspaceMetadata>,
         )
         .map_err(map_corrupt_or_sqlite_error)?;
 
-    if application_id == APPLICATION_ID && schema_version == i64::from(SCHEMA_VERSION) {
+    if application_id == APPLICATION_ID
+        && (schema_version == 2 || schema_version == i64::from(SCHEMA_VERSION))
+    {
         return validate_database(&connection).map(Some);
     }
     if application_id == 0 && schema_version == 0 && application_table_count == 0 {
@@ -569,6 +580,7 @@ pub(super) fn open_read_only_workspace(
         .map_err(map_sqlite_error)?;
     verify_wal_mode(&connection)?;
     let metadata = validate_database_read_only(&connection)?;
+    super::import::verify_import_integrity(&root, &connection, &metadata.series.id)?;
     Ok((connection, metadata))
 }
 
@@ -645,6 +657,7 @@ fn bootstrap_v2_with_hook(
             (&series_id, BOOTSTRAP_GENERATION),
         )
         .map_err(map_sqlite_error)?;
+    super::migration::apply_m003(&transaction)?;
     transaction
         .execute_batch(&format!(
             "PRAGMA application_id = {APPLICATION_ID}; PRAGMA user_version = {SCHEMA_VERSION};"
@@ -698,7 +711,7 @@ fn validate_database_inner(
             supported: SCHEMA_VERSION,
         });
     }
-    if version != 1 && version != i64::from(SCHEMA_VERSION) {
+    if version != 1 && version != 2 && version != i64::from(SCHEMA_VERSION) {
         return Err(WorkspaceError::CorruptWorkspace);
     }
 
@@ -729,13 +742,21 @@ fn validate_database_inner(
             |row| row.get(0),
         )
         .map_err(map_corrupt_or_sqlite_error)?;
-    let expected_table_count = if version == 1 { 4 } else { 6 };
+    let expected_table_count = match version {
+        1 => 4,
+        2 => 6,
+        3 => 9,
+        _ => return Err(WorkspaceError::CorruptWorkspace),
+    };
     if table_count != expected_table_count {
         return Err(WorkspaceError::CorruptWorkspace);
     }
     validate_schema_columns(connection)?;
-    if version == i64::from(SCHEMA_VERSION) {
+    if version >= 2 {
         validate_schema_v2_columns(connection)?;
+    }
+    if version == 3 {
+        super::migration::validate_m003(connection, probe_write_constraints)?;
     }
 
     if !has_foreign_key_group(
@@ -764,7 +785,7 @@ fn validate_database_inner(
             ("series_id", "series_id"),
             ("generation_id", "generation_id"),
         ],
-    )? || (version == i64::from(SCHEMA_VERSION)
+    )? || (version >= 2
         && (!has_foreign_key_group(
             connection,
             "generation_operations",
