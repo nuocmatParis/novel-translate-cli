@@ -1,3 +1,8 @@
+#[path = "import_files.rs"]
+mod import_files;
+
+pub use import_files::{FileImportSourceStore, PinnedImportSource};
+
 use std::collections::BTreeSet;
 use std::fs::{self, File, Metadata, OpenOptions};
 use std::io::{self, ErrorKind, Read, Seek, SeekFrom, Write};

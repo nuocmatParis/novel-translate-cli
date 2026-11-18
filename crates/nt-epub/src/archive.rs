@@ -7,6 +7,7 @@ use zip::CompressionMethod;
 use zip::read::{ArchiveOffset, Config, ZipArchive};
 
 use crate::path::{ArchivePathError, canonical_archive_path, windows_materialization_key};
+use crate::reference_index::native_space;
 
 const EOCD_SIGNATURE: u32 = 0x0605_4b50;
 const ZIP64_EOCD_SIGNATURE: u32 = 0x0606_4b50;
@@ -20,6 +21,19 @@ const CENTRAL_DIRECTORY_FIXED_BYTES: usize = 46;
 const MAX_EOCD_SCAN_BYTES: usize = EOCD_FIXED_BYTES + u16::MAX as usize;
 const DEFAULT_MAX_CENTRAL_DIRECTORY_BYTES: u64 = 64 * 1024 * 1024;
 const READ_BUFFER_BYTES: usize = 64 * 1024;
+
+pub(crate) struct WorkingEntry {
+    bytes: Vec<u8>,
+    _reservation: Option<native_space::Lease>,
+}
+
+impl std::ops::Deref for WorkingEntry {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.bytes
+    }
+}
 
 static NEXT_ARCHIVE_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -432,6 +446,40 @@ impl<R: Read + Seek> EpubZip<R> {
     /// discarded and the archive read session is closed. This prevents retrying
     /// a failed entry or switching entries to bypass cumulative limits.
     pub fn read_entry(&mut self, id: EntryId) -> Result<Vec<u8>, ArchiveError> {
+        self.read_entry_inner(id, false)
+    }
+
+    pub(crate) fn read_working_entry(&mut self, id: EntryId) -> Result<WorkingEntry, ArchiveError> {
+        if !native_space::active() || id.archive_id != self.archive_id {
+            return self.read_entry(id).map(|bytes| WorkingEntry {
+                bytes,
+                _reservation: None,
+            });
+        }
+        let reservation =
+            self.entries
+                .get(id.index)
+                .map(|entry| {
+                    let raw = usize::try_from(entry.declared_size).unwrap_or(usize::MAX);
+                    let bytes = raw.max(8).saturating_mul(3);
+                    let names = (entry.name.len() + entry.canonical_path.len()).saturating_mul(4);
+                    native_space::hold(bytes.saturating_add(names).saturating_add(512 * 1024))
+                        .map_err(|_| ArchiveError::AllocationFailed {
+                            entry: entry.name.clone(),
+                        })
+                })
+                .transpose()?;
+        self.read_entry_inner(id, true).map(|bytes| WorkingEntry {
+            bytes,
+            _reservation: reservation,
+        })
+    }
+
+    fn read_entry_inner(
+        &mut self,
+        id: EntryId,
+        enforce_declared: bool,
+    ) -> Result<Vec<u8>, ArchiveError> {
         if let Some(failed_entry) = &self.failed_read_entry {
             let attempted_entry = if id.archive_id == self.archive_id {
                 self.entries
@@ -479,6 +527,11 @@ impl<R: Read + Seek> EpubZip<R> {
         let read_limit = remaining_total.min(self.limits.max_entry_bytes);
         let name = entry.name.clone();
         let declared_size = entry.declared_size;
+        let read_limit = if enforce_declared {
+            read_limit.min(declared_size)
+        } else {
+            read_limit
+        };
 
         let read_result = match self.archive.by_index(id.index) {
             Ok(mut file) => read_bounded(
@@ -497,7 +550,14 @@ impl<R: Read + Seek> EpubZip<R> {
             ),
         };
 
-        let (result, consumed) = read_result;
+        let (mut result, consumed) = read_result;
+        if enforce_declared && consumed > declared_size {
+            result = Err(ArchiveError::EntrySizeMismatch {
+                entry: name.clone(),
+                declared: declared_size,
+                actual: consumed,
+            });
+        }
         self.expanded_bytes_consumed = self.expanded_bytes_consumed.saturating_add(consumed);
         if result.is_err() {
             self.failed_read_entry = Some(name);

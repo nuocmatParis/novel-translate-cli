@@ -195,6 +195,7 @@ fn allowed_internal_edge(source: &str, target: &str) -> bool {
             | ("novel-translate", "nt-application")
             | ("novel-translate", "nt-tui")
             | ("novel-translate", "nt-storage")
+            | ("novel-translate", "nt-epub")
     )
 }
 
@@ -439,6 +440,12 @@ fn analyze_metadata_with_packages(
                     || (edge.source == "nt-epub"
                         && edge.target == "nt-domain"
                         && !allowed_epub_domain_edge(edge.kind, edge.target_condition.as_deref()))
+                    || (edge.source == "novel-translate"
+                        && edge.target == "nt-epub"
+                        && (edge.kind != DependencyKind::Normal
+                            || edge.target_condition.is_some()
+                            || edge.optional
+                            || edge.alias.is_some()))
                 {
                     report.violations.push(format!(
                         "forbidden internal dependency: source=`{}`, destination=`{}`; {}",
@@ -1393,4 +1400,154 @@ fn rejects_unapproved_normal_and_target_specific_build_dependencies() {
     assert!(violations.contains(
         "kind=build, target=cfg(windows), optional=true, features=rt, alias=`async_runtime`"
     ));
+}
+
+#[cfg(test)]
+mod phase02_import_dependency {
+    use super::*;
+
+    fn metadata_with(edge: serde_json::Value) -> String {
+        fixture(
+            PRODUCT_PACKAGES
+                .iter()
+                .map(|name| {
+                    package(
+                        name,
+                        if *name == "novel-translate" {
+                            vec![edge.clone()]
+                        } else {
+                            vec![]
+                        },
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn app_epub_is_one_unconditional_named_nonoptional_runtime_edge() {
+        let normal = dependency("nt-epub", None, None, None, false, &[], None);
+        let report = analyze_metadata(&metadata_with(normal)).unwrap();
+        assert!(report.is_clean(), "{}", report.describe_violations());
+        let edges = report
+            .runtime_edges
+            .iter()
+            .filter(|edge| edge.source == "novel-translate" && edge.target == "nt-epub")
+            .collect::<Vec<_>>();
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].kind, DependencyKind::Normal);
+        for (rename, kind, target, optional) in [
+            (Some("epub_alias"), None, None, false),
+            (None, Some("build"), None, false),
+            (None, None, Some("cfg(windows)"), false),
+            (None, None, None, true),
+        ] {
+            let report = analyze_metadata(&metadata_with(dependency(
+                "nt-epub",
+                rename,
+                kind,
+                target,
+                optional,
+                &[],
+                None,
+            )))
+            .unwrap();
+            assert!(
+                !report.is_clean(),
+                "{rename:?} {kind:?} {target:?} {optional}"
+            );
+            assert!(
+                report
+                    .describe_violations()
+                    .contains("forbidden internal dependency")
+            );
+        }
+        let report = analyze_metadata(&metadata_with(dependency(
+            "nt-epub",
+            None,
+            Some("dev"),
+            None,
+            false,
+            &[],
+            None,
+        )))
+        .unwrap();
+        assert!(report.is_clean());
+        assert!(
+            report
+                .runtime_edges
+                .iter()
+                .all(|edge| edge.source != "novel-translate" || edge.target != "nt-epub")
+        );
+        assert_eq!(report.dev_edges.len(), 1);
+    }
+
+    #[test]
+    fn app_epub_shadowed_or_registry_package_cannot_impersonate_the_workspace_crate() {
+        let mut shadowed = dependency("nt-epub", None, None, None, false, &[], None);
+        shadowed["path"] = serde_json::json!("C:/third-party/nt-epub");
+        for edge in [
+            shadowed,
+            dependency("nt-epub", None, None, None, false, &[], Some(CRATES_IO)),
+        ] {
+            let report = analyze_metadata(&metadata_with(edge)).unwrap();
+            assert!(!report.is_clean());
+            assert!(
+                report
+                    .describe_violations()
+                    .contains("unapproved external dependency")
+            );
+        }
+    }
+
+    #[test]
+    fn real_metadata_pins_import_runtime_edge_to_the_resolved_workspace_epub() {
+        let output = Command::new("cargo")
+            .args([
+                "metadata",
+                "--locked",
+                "--offline",
+                "--format-version",
+                "1",
+                "--all-features",
+                "--filter-platform",
+                ARCHITECTURE_TARGET,
+            ])
+            .current_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{:?}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let metadata = String::from_utf8(output.stdout).unwrap();
+        let report = analyze_metadata(&metadata).unwrap();
+        assert!(report.is_clean(), "{}", report.describe_violations());
+        let epub = report
+            .runtime_edges
+            .iter()
+            .find(|edge| edge.source == "novel-translate" && edge.target == "nt-epub")
+            .unwrap();
+        assert_eq!(epub.kind, DependencyKind::Normal);
+        assert!(epub.alias.is_none() && epub.target_condition.is_none() && !epub.optional);
+        assert!(epub.package_source.is_none() && epub.package_path.is_some());
+        let parsed: CargoMetadata = serde_json::from_str(&metadata).unwrap();
+        let app = parsed
+            .packages
+            .iter()
+            .find(|p| p.name == "novel-translate")
+            .unwrap();
+        let resolved = resolved_packages_for_declaration(
+            &parsed,
+            app,
+            app.dependencies
+                .iter()
+                .find(|dependency| dependency.name == "nt-epub")
+                .unwrap(),
+        );
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].name, "nt-epub");
+        assert!(resolved[0].source.is_none());
+    }
 }

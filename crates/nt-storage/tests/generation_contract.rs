@@ -339,7 +339,7 @@ fn v1_open_migrates_through_staging_and_preserves_workspace_and_objects() {
             .expect("insert existing Volume metadata");
         connection
             .execute_batch(
-                "DROP TABLE generation_operations; DROP TABLE generation_object_refs; PRAGMA user_version = 1;",
+                "DROP TABLE cp05_resource_refs; DROP TABLE cp05_volume_versions; DROP TABLE cp05_series_defaults; DROP TABLE generation_operations; DROP TABLE generation_object_refs; PRAGMA user_version = 1;",
             )
             .expect("restore the published v1 schema for migration fixture");
         connection
@@ -364,7 +364,7 @@ fn v1_open_migrates_through_staging_and_preserves_workspace_and_objects() {
         .expect("migrate and open v1 workspace");
     assert_eq!(opened.series, created.series);
     assert_eq!(opened.current_generation.as_str(), "g0");
-    assert_eq!(opened.schema_version, 2);
+    assert_eq!(opened.schema_version, 3);
     assert_eq!(
         fs::read(&object_path).expect("read preserved object"),
         object_bytes
@@ -403,6 +403,16 @@ fn v1_open_migrates_through_staging_and_preserves_workspace_and_objects() {
                 .file_name()
                 .to_string_lossy()
                 .starts_with(".nt-migration-backup-")
+                && Connection::open_with_flags(
+                    entry.path().join(DATABASE_FILE),
+                    OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+                )
+                .ok()
+                .and_then(|database| {
+                    database
+                        .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                        .ok()
+                }) == Some(1)
         })
         .expect("successful migration retains its source backup");
     let backup_database = Connection::open_with_flags(

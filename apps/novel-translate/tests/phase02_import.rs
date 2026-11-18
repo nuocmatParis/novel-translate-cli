@@ -5,6 +5,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[cfg(windows)]
+#[path = "support/application_import.rs"]
+mod application_import;
+
 static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
 
 struct TempDir(PathBuf);
@@ -96,7 +100,7 @@ fn cli_creates_and_reopens_a_unicode_spaced_workspace_with_matching_metadata() {
     assert_eq!(created_json["command"], "workspace create");
     assert_eq!(created_json["state"], "complete");
     assert_eq!(created_json["scope"]["kind"], "workspace");
-    assert_eq!(created_json["result"]["schema_version"], 2);
+    assert_eq!(created_json["result"]["schema_version"], 3);
     assert_eq!(created_json["result"]["current_generation"], "g0");
     assert_eq!(
         created_json["result"]["series_id"].as_str().unwrap().len(),
