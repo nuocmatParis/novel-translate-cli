@@ -74,6 +74,8 @@ __pycache__/
 *.cbz
 *.cbr
 [Vv]ol*
+!/crates/nt-application/src/volume_import.rs
+!/crates/nt-domain/src/volume_import.rs
 *rezero*
 *ReZero*
 *re_zero*

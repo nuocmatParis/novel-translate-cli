@@ -31,7 +31,9 @@ impl SqliteGenerationReader {
         let root = root.as_ref();
         let (connection, metadata) =
             crate::workspace::open_read_only_workspace(root).map_err(map_workspace_error)?;
-        if metadata.schema_version != crate::workspace::SCHEMA_VERSION {
+        if metadata.schema_version != 2
+            && metadata.schema_version != crate::workspace::SCHEMA_VERSION
+        {
             return Err(GenerationCommitError::CorruptWorkspace);
         }
         Ok(Self {
@@ -190,6 +192,9 @@ pub(super) fn commit_request(
     if current != request.expected_parent().as_str() {
         return Err(GenerationCommitError::StaleGeneration);
     }
+
+    let _active_import_pins =
+        crate::import::pin_active_for_generic(&transaction, store, series_id)?;
 
     let committed_at = now_utc_ms()?;
     transaction

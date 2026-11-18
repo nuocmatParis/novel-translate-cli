@@ -22,10 +22,10 @@ use sha2::{Digest, Sha256};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::archive::{ArchiveError, EpubZip};
+use crate::effective_base::{BaseContext, ReferenceKind};
 use crate::inventory::{
     Diagnostic, EpubInventory, InventoryCoverage, ResourceEncryption, SpineContentKind,
 };
-use crate::package::resolve_href;
 use crate::xml::{
     DEFAULT_XML_MAX_BYTES, DEFAULT_XML_MAX_NODES, XmlFailure, XmlFailureKind, with_xml_document,
 };
@@ -34,7 +34,7 @@ const XHTML_NAMESPACE: &str = "http://www.w3.org/1999/xhtml";
 const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
 const XLINK_NAMESPACE: &str = "http://www.w3.org/1999/xlink";
 const EPUB_NAMESPACE: &str = "http://www.idpf.org/2007/ops";
-pub const PARSER_VERSION: &str = "nt-epub/1.5.0";
+pub const PARSER_VERSION: &str = "nt-epub/1.6.0";
 const MAX_XML_ELEMENT_DEPTH: usize = 256;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -131,6 +131,7 @@ impl SourceExtraction {
 #[derive(Debug)]
 pub enum SourceExtractionError {
     EmptyParserVersion,
+    WorkingMemoryLimit,
     Archive(ArchiveError),
     Xml {
         canonical_path: String,
@@ -143,6 +144,9 @@ pub enum SourceExtractionError {
     },
     InvalidIdentity,
     InvalidSourceSpan,
+    BaseResolutionLimit {
+        canonical_path: String,
+    },
     XmlDepthLimit {
         canonical_path: String,
         max_depth: usize,
@@ -153,6 +157,9 @@ impl fmt::Display for SourceExtractionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyParserVersion => formatter.write_str("parser version must not be empty"),
+            Self::WorkingMemoryLimit => {
+                formatter.write_str("source exceeds its working memory limit")
+            }
             Self::Archive(error) => write!(formatter, "EPUB archive read failed: {error}"),
             Self::Xml { canonical_path } => {
                 write!(
@@ -170,6 +177,10 @@ impl fmt::Display for SourceExtractionError {
             ),
             Self::InvalidIdentity => formatter.write_str("source block identity is invalid"),
             Self::InvalidSourceSpan => formatter.write_str("source text span is invalid"),
+            Self::BaseResolutionLimit { canonical_path } => write!(
+                formatter,
+                "reference resolution in resource {canonical_path} exceeds its safe limit"
+            ),
             Self::XmlDepthLimit {
                 canonical_path,
                 max_depth,
@@ -197,6 +208,27 @@ pub fn extract_source<R: Read + Seek>(
     inventory: &EpubInventory,
     epub_sha256: [u8; 32],
     parser_version: &str,
+) -> Result<SourceExtraction, SourceExtractionError> {
+    extract_source_with_navigation(
+        archive,
+        inventory,
+        epub_sha256,
+        parser_version,
+        extract_navigation,
+    )
+}
+
+type NavigationEvidence = (Vec<MapNavigationTree>, Vec<SourceInputDiagnostic>);
+
+fn extract_source_with_navigation<R: Read + Seek>(
+    archive: &mut EpubZip<R>,
+    inventory: &EpubInventory,
+    epub_sha256: [u8; 32],
+    parser_version: &str,
+    read_navigation: impl FnOnce(
+        &mut EpubZip<R>,
+        &EpubInventory,
+    ) -> Result<NavigationEvidence, SourceExtractionError>,
 ) -> Result<SourceExtraction, SourceExtractionError> {
     if parser_version.trim().is_empty() {
         return Err(SourceExtractionError::EmptyParserVersion);
@@ -401,7 +433,7 @@ pub fn extract_source<R: Read + Seek>(
         });
     }
 
-    let (navigation, mut navigation_diagnostics) = extract_navigation(archive, inventory)?;
+    let (navigation, mut navigation_diagnostics) = read_navigation(archive, inventory)?;
     navigation_diagnostics.extend(optional_navigation_diagnostics);
 
     let mut resource_hashes = HashMap::<String, [u8; 32]>::new();
@@ -496,7 +528,7 @@ struct RawNavigationItem {
 fn extract_navigation<R: Read + Seek>(
     archive: &mut EpubZip<R>,
     inventory: &EpubInventory,
-) -> Result<(Vec<MapNavigationTree>, Vec<SourceInputDiagnostic>), SourceExtractionError> {
+) -> Result<NavigationEvidence, SourceExtractionError> {
     let mut trees = Vec::new();
     let mut diagnostics = Vec::new();
     for tree in &inventory.navigation {
@@ -511,7 +543,7 @@ fn extract_navigation<R: Read + Seek>(
         let raw_items = match entry_id {
             Some(entry_id) => {
                 let bytes = archive
-                    .read_entry(entry_id)
+                    .read_working_entry(entry_id)
                     .map_err(SourceExtractionError::Archive)?;
                 match with_xml_document(
                     &bytes,
@@ -1281,6 +1313,11 @@ fn parse_document_tree(
             canonical_path: canonical_path.to_owned(),
         });
     }
+    let base = BaseContext::from_document(canonical_path, document).map_err(|_| {
+        SourceExtractionError::BaseResolutionLimit {
+            canonical_path: canonical_path.to_owned(),
+        }
+    })?;
     let text_segments = lexical_text_segments(document, canonical_path)?;
     let id_counts = element_id_counts(root);
     let fragment_counts = element_fragment_counts(root);
@@ -1306,6 +1343,7 @@ fn parse_document_tree(
         })
         .flatten();
     let mut collector = BlockCollector {
+        base: &base,
         id_counts: &id_counts,
         fragment_counts: &fragment_counts,
         text_segments: &text_segments,
@@ -1358,6 +1396,7 @@ fn parse_document_tree(
 }
 
 struct BlockCollector<'a> {
+    base: &'a BaseContext,
     id_counts: &'a HashMap<String, usize>,
     fragment_counts: &'a HashMap<String, usize>,
     text_segments: &'a HashMap<NodeId, Vec<String>>,
@@ -1387,6 +1426,7 @@ fn collect_blocks(
             collector.canonical_path,
             inherited_metadata,
             collector.text_segments,
+            collector.base,
         )?;
         let mut segment_tokens = Vec::new();
         let mut next_segment_order = 0;
@@ -1756,6 +1796,7 @@ fn collect_block_tokens(
     canonical_path: &str,
     inherited_metadata: &[MetadataBuilder],
     text_segments: &HashMap<NodeId, Vec<String>>,
+    base: &BaseContext,
 ) -> Result<RawBlock, SourceExtractionError> {
     let mut raw = RawBlock {
         tokens: Vec::new(),
@@ -1765,6 +1806,7 @@ fn collect_block_tokens(
     let mut active_metadata = (0..inherited_metadata.len()).collect();
     let mut image_occurrence = 0_usize;
     let mut state = ContentWalkState {
+        base,
         block_root,
         block_locator,
         fragment_counts,
@@ -1780,6 +1822,7 @@ fn collect_block_tokens(
 }
 
 struct ContentWalkState<'doc, 'input, 'data> {
+    base: &'data BaseContext,
     block_root: Node<'doc, 'input>,
     block_locator: &'data BlockLocator,
     fragment_counts: &'data HashMap<String, usize>,
@@ -1881,15 +1924,28 @@ fn walk_content(
     let is_svg_image = tag == "image" && node.tag_name().namespace() == Some(SVG_NAMESPACE);
     if is_xhtml_image || is_svg_image {
         let raw_source = if is_xhtml_image {
-            node.attribute("src")
+            crate::effective_base::unqualified_attribute(node, "src")
         } else {
-            node.attribute("href")
+            crate::effective_base::unqualified_attribute(node, "href")
                 .or_else(|| node.attribute((XLINK_NAMESPACE, "href")))
         }
         .map(str::to_owned);
-        let resolved = raw_source
-            .as_deref()
-            .map(|source| resolve_href(state.canonical_path, source));
+        let resolved = raw_source.as_deref().map(|source| {
+            state.base.resolve(
+                node,
+                source,
+                if is_svg_image {
+                    ReferenceKind::Svg
+                } else {
+                    ReferenceKind::Html
+                },
+            )
+        });
+        if matches!(resolved, Some(Err(error)) if error.is_limit()) {
+            return Err(SourceExtractionError::BaseResolutionLimit {
+                canonical_path: state.canonical_path.to_owned(),
+            });
+        }
         let (resource_path, external) = match resolved {
             Some(Ok(resolved)) => (resolved.path, resolved.external),
             Some(Err(_)) => (None, false),
@@ -2663,3 +2719,6 @@ mod tests {
         assert_ne!(id(&first), id(&changed_parser));
     }
 }
+
+#[path = "source_proof.rs"]
+mod source_proof;

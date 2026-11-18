@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use roxmltree::{Document, Error, Node, ParsingOptions, TextPos};
 
 use crate::encoding::decode_xml;
+use crate::reference_index::native_space;
 
 pub(crate) const DEFAULT_XML_MAX_BYTES: usize = 16 * 1024 * 1024;
 pub(crate) const DEFAULT_XML_MAX_NODES: u32 = 1_000_000;
@@ -57,8 +58,55 @@ fn with_xml_document_with_expansion_limit<T>(
     max_expanded_bytes: usize,
     visit: impl FnOnce(&Document<'_>) -> T,
 ) -> Result<T, XmlFailure> {
+    let mut decoder = if native_space::active() {
+        Some(native_space::xml_decode(bytes).map_err(working_limit)?)
+    } else {
+        None
+    };
     let text = decode_xml(bytes, max_bytes)?;
-    preflight_entity_expansion(&text, max_expanded_bytes)?;
+    if let Some(decoder) = &mut decoder {
+        decoder
+            .release_scratch(text.capacity())
+            .map_err(working_limit)?;
+    }
+    with_decoded_xml_document(&text, max_expanded_bytes, max_nodes, visit)
+}
+
+pub(crate) fn with_decoded_xml_document<T>(
+    text: &str,
+    max_expanded_bytes: usize,
+    max_nodes: u32,
+    visit: impl FnOnce(&Document<'_>) -> T,
+) -> Result<T, XmlFailure> {
+    let bounded = native_space::active();
+    let doctype = find_doctype_span(text);
+    let internal_entities = doctype.is_some_and(|span| span.subset.is_some());
+    let _entity_scan = if bounded && internal_entities {
+        Some(native_space::xml_entity_tables(text).map_err(working_limit)?)
+    } else {
+        None
+    };
+    let expanded = project_entity_expansion(
+        text,
+        max_expanded_bytes,
+        doctype,
+        bounded,
+        &mut ScanMetrics::default(),
+    )?;
+    drop(_entity_scan);
+    let _document = if bounded {
+        Some(
+            native_space::xml_document(
+                text,
+                expanded.bytes,
+                expanded.namespace_markers,
+                internal_entities,
+            )
+            .map_err(working_limit)?,
+        )
+    } else {
+        None
+    };
     let deny_external = |_public_id: Option<&str>, _uri: &str| -> Result<Option<&str>, String> {
         Err("external entity access is disabled".to_owned())
     };
@@ -67,8 +115,15 @@ fn with_xml_document_with_expansion_limit<T>(
         nodes_limit: max_nodes,
         entity_resolver: Some(&deny_external),
     };
-    let document = Document::parse_with_options(&text, options).map_err(map_parser_error)?;
+    let document = Document::parse_with_options(text, options).map_err(map_parser_error)?;
+    if bounded {
+        native_space::retain_xml_projection(&document).map_err(working_limit)?;
+    }
     Ok(visit(&document))
+}
+
+fn working_limit(_: native_space::Limit) -> XmlFailure {
+    XmlFailure::new(XmlFailureKind::ByteLimit, None)
 }
 
 #[derive(Clone, Copy)]
@@ -104,10 +159,17 @@ impl ScanMetrics {
 
 struct EntityExpansion<'a, 'doc> {
     max_expanded_bytes: usize,
+    count_namespace_markers: bool,
     entities: &'a HashMap<String, EntityDefinition<'doc>>,
-    memo: &'a mut HashMap<String, usize>,
+    memo: &'a mut HashMap<String, EntityProjection>,
     active: &'a mut HashSet<String>,
     metrics: &'a mut ScanMetrics,
+}
+
+#[derive(Clone, Copy)]
+struct EntityProjection {
+    bytes: usize,
+    namespace_markers: usize,
 }
 
 struct EntityReferenceEnd {
@@ -151,17 +213,63 @@ fn find_entity_reference_end(bytes: &[u8], start: usize) -> EntityReferenceEnd {
     }
 }
 
-fn preflight_entity_expansion(text: &str, max_expanded_bytes: usize) -> Result<(), XmlFailure> {
+#[cfg(test)]
+fn preflight_entity_expansion(text: &str, max_expanded_bytes: usize) -> Result<usize, XmlFailure> {
     let mut metrics = ScanMetrics::default();
     preflight_entity_expansion_with_metrics(text, max_expanded_bytes, &mut metrics)
 }
 
+#[test]
+fn namespace_markers_follow_small_internal_entity_expansions() {
+    let xml = "<!DOCTYPE root [<!ENTITY label 'Chapter'><!ENTITY part \"<p xmlns='urn:chapter'>&label;</p>\">]><root>&part;&part;</root>";
+    let projected = project_entity_expansion(
+        xml,
+        1024,
+        find_doctype_span(xml),
+        true,
+        &mut ScanMetrics::default(),
+    )
+    .unwrap();
+    // One literal declaration in the subset and one for each parsed section.
+    assert_eq!(projected.namespace_markers, 3);
+    let sections = native_space::scoped(512 * 1024, || {
+        with_xml_document(xml.as_bytes(), 1024, 32, |document| {
+            document
+                .descendants()
+                .filter(|node| {
+                    node.has_tag_name(("urn:chapter", "p")) && node.text() == Some("Chapter")
+                })
+                .count()
+        })
+    })
+    .unwrap()
+    .unwrap();
+    assert_eq!(sections, 2);
+}
+
+#[cfg(test)]
 fn preflight_entity_expansion_with_metrics(
     text: &str,
     max_expanded_bytes: usize,
     metrics: &mut ScanMetrics,
-) -> Result<(), XmlFailure> {
-    let doctype = find_doctype_span(text);
+) -> Result<usize, XmlFailure> {
+    project_entity_expansion(
+        text,
+        max_expanded_bytes,
+        find_doctype_span(text),
+        false,
+        metrics,
+    )
+    .map(|projection| projection.bytes)
+}
+
+fn project_entity_expansion(
+    text: &str,
+    max_expanded_bytes: usize,
+    doctype: Option<DoctypeSpan>,
+    count_namespace_markers: bool,
+    metrics: &mut ScanMetrics,
+) -> Result<EntityProjection, XmlFailure> {
     let entities = match doctype.and_then(|span| span.subset.map(|subset| (span, subset))) {
         Some((_, (start, end))) => parse_internal_entities(text, start, end).map_err(|offset| {
             XmlFailure::new(
@@ -176,19 +284,18 @@ fn preflight_entity_expansion_with_metrics(
     let skip = doctype.map(|span| (span.start, span.end));
     let mut expansion = EntityExpansion {
         max_expanded_bytes,
+        count_namespace_markers,
         entities: &entities,
         memo: &mut memo,
         active: &mut active,
         metrics,
     };
-    estimate_referenced_size(text, skip, 0, &mut expansion)
-        .map(|_| ())
-        .map_err(|offset| {
-            XmlFailure::new(
-                XmlFailureKind::EntityExpansionLimit,
-                Some(text_position_at(text, offset)),
-            )
-        })
+    estimate_referenced_size(text, skip, 0, &mut expansion).map_err(|offset| {
+        XmlFailure::new(
+            XmlFailureKind::EntityExpansionLimit,
+            Some(text_position_at(text, offset)),
+        )
+    })
 }
 
 fn find_doctype_span(text: &str) -> Option<DoctypeSpan> {
@@ -390,9 +497,18 @@ fn estimate_referenced_size(
     skip: Option<(usize, usize)>,
     depth: usize,
     expansion: &mut EntityExpansion<'_, '_>,
-) -> Result<usize, usize> {
+) -> Result<EntityProjection, usize> {
     let bytes = text.as_bytes();
-    let mut projected_size = text.len();
+    let mut projected = EntityProjection {
+        bytes: text.len(),
+        // Parser attribute names are raw tokens. Count literal name markers
+        // even in inert spans for an upper bound without an XML parse.
+        namespace_markers: if expansion.count_namespace_markers {
+            text.matches("xmlns").count()
+        } else {
+            0
+        },
+    };
     let mut cursor = 0;
     while cursor < bytes.len() {
         if let Some((start, end)) = skip
@@ -437,11 +553,15 @@ fn estimate_referenced_size(
         }
         let name = &text[cursor + 1..semicolon];
         match estimate_entity_reference(name, depth, expansion) {
-            Ok(Some(expanded_size)) => {
-                projected_size = projected_size
+            Ok(Some(entity)) => {
+                projected.bytes = projected
+                    .bytes
                     .saturating_sub(semicolon + 1 - cursor)
-                    .saturating_add(expanded_size);
-                if projected_size > expansion.max_expanded_bytes {
+                    .saturating_add(entity.bytes);
+                projected.namespace_markers = projected
+                    .namespace_markers
+                    .saturating_add(entity.namespace_markers);
+                if projected.bytes > expansion.max_expanded_bytes {
                     return Err(cursor);
                 }
             }
@@ -450,10 +570,10 @@ fn estimate_referenced_size(
         }
         cursor = semicolon + 1;
     }
-    if projected_size > expansion.max_expanded_bytes {
+    if projected.bytes > expansion.max_expanded_bytes {
         Err(0)
     } else {
-        Ok(projected_size)
+        Ok(projected)
     }
 }
 
@@ -461,9 +581,12 @@ fn estimate_entity_reference(
     name: &str,
     depth: usize,
     expansion: &mut EntityExpansion<'_, '_>,
-) -> Result<Option<usize>, ()> {
+) -> Result<Option<EntityProjection>, ()> {
     if let Some(size) = character_reference_size(name) {
-        return Ok(Some(size));
+        return Ok(Some(EntityProjection {
+            bytes: size,
+            namespace_markers: 0,
+        }));
     }
     if let Some(size) = expansion.memo.get(name) {
         return Ok(Some(*size));
@@ -696,6 +819,7 @@ mod tests {
             let entities = HashMap::new();
             let mut expansion = EntityExpansion {
                 max_expanded_bytes: 64 * 1024,
+                count_namespace_markers: false,
                 entities: &entities,
                 memo: &mut memo,
                 active: &mut active,

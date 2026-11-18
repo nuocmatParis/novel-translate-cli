@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "=4.6.7", default-features = false, features = ["derive", "std", "color", "help", "usage", "error-context", "suggestions"] }
 nt-application = { path = "../../crates/nt-application" }
+nt-epub = { path = "../../crates/nt-epub" }
 nt-storage = { path = "../../crates/nt-storage" }
 nt-tui = { path = "../../crates/nt-tui" }
 serde = { version = "=1.0.229", default-features = false, features = ["derive", "std"] }
@@ -21,3 +22,4 @@ tracing = { version = "=0.1.44", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["env-filter", "fmt"] }
 
 [dev-dependencies]
+rusqlite = { version = "=0.40.2", default-features = false }

@@ -1,3 +1,6 @@
+#[path = "import_writer.rs"]
+mod import_writer;
+
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, SyncSender, TrySendError};
@@ -27,6 +30,13 @@ enum WriterMessage {
         request: GenerationWriteRequest,
         fingerprint: [u8; 32],
         reply: SyncSender<Result<GenerationCommitResult, GenerationCommitError>>,
+    },
+    CommitImport {
+        request: nt_domain::volume_import::VolumeImportWriteRequest,
+        fingerprint: [u8; 32],
+        reply: SyncSender<
+            Result<GenerationCommitResult, nt_application::volume_import::ImportWriteError>,
+        >,
     },
     Shutdown,
 }
@@ -213,6 +223,20 @@ fn writer_loop(
                 reply,
             } => {
                 let result = commit_request(connection, store, series_id, request, fingerprint);
+                let _ = reply.send(result);
+            }
+            WriterMessage::CommitImport {
+                request,
+                fingerprint,
+                reply,
+            } => {
+                let result = import_writer::commit_import_request(
+                    connection,
+                    store,
+                    series_id,
+                    request,
+                    fingerprint,
+                );
                 let _ = reply.send(result);
             }
             WriterMessage::Shutdown => break,
