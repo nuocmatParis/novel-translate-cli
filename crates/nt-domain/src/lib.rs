@@ -4,4 +4,6 @@ pub mod chapter_map;
 pub mod object;
 
 pub mod source_range;
+pub mod source_scope;
+pub mod volume_import;
 pub mod workspace;

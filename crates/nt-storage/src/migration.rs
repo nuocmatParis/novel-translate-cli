@@ -1,3 +1,8 @@
+#[path = "migration_v3.rs"]
+mod migration_v3;
+
+pub(super) use migration_v3::{apply_m003, migrate_v2_to_v3, validate_m003};
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -9,6 +14,8 @@ use rusqlite::{Connection, OpenFlags, Transaction, TransactionBehavior};
 use super::workspace::{
     SCHEMA_VERSION, configure_connection, map_io_error, map_sqlite_error, validate_database,
 };
+
+const M002_VERSION: u32 = 2;
 
 static NEXT_MIGRATION_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -49,7 +56,7 @@ pub(super) fn apply_m002(transaction: &Transaction<'_>) -> Result<(), WorkspaceE
         .execute_batch(M002_SCHEMA)
         .map_err(map_sqlite_error)?;
     transaction
-        .pragma_update(None, "user_version", SCHEMA_VERSION)
+        .pragma_update(None, "user_version", M002_VERSION)
         .map_err(map_sqlite_error)
 }
 
@@ -74,7 +81,7 @@ fn migrate_v1_to_v2_with_failpoint(
     let current_version: i64 = connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(map_sqlite_error)?;
-    if current_version == i64::from(SCHEMA_VERSION) {
+    if current_version == i64::from(M002_VERSION) || current_version == i64::from(SCHEMA_VERSION) {
         return Ok(());
     }
     if current_version != 1 {
@@ -136,7 +143,9 @@ fn migrate_v1_to_v2_with_failpoint(
     let version_inside_transaction: i64 = transaction
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(map_sqlite_error)?;
-    if version_inside_transaction == i64::from(SCHEMA_VERSION) {
+    if version_inside_transaction == i64::from(M002_VERSION)
+        || version_inside_transaction == i64::from(SCHEMA_VERSION)
+    {
         transaction.commit().map_err(map_sqlite_error)?;
         return Ok(());
     }

@@ -215,12 +215,12 @@ fn epub3_source_order_spans_and_protected_units_match_the_written_oracle() {
     assert_eq!(grapheme_text(target), "A");
     assert_eq!(
         target.id.to_string(),
-        "312ade704eb0499b84c9b198abc5be60d15cf74e23962f6b0367701e4344414e"
+        "21f704cc24bf345a206293a7ac7ef954f51059d310169a1e9b6d1740179f4d04"
     );
     assert_eq!(grapheme_text(middle), "B");
     assert_eq!(
         middle.id.to_string(),
-        "c54ed8048f5de868f9e89b4d0f8cab02b70a03d1dd7897f7668cc0f6d59406b9"
+        "3eac6ea6d1afcec2c472b5a7c2c0ae89f575e3d6d09fa92059522c8d58d79c66"
     );
     let tail = chapter
         .blocks
@@ -326,7 +326,7 @@ fn epub3_source_order_spans_and_protected_units_match_the_written_oracle() {
     assert_eq!(container.unit_offset, 0);
     assert_eq!(
         container_block.id.to_string(),
-        "07586bd003c856e351105de1a8b38816e0ef5adec68c8b8cb39319cb694263f0"
+        "0a49ae720ecddb8f96898aaebe5150f9004705dc6145a23c3d1fd08e1dda46f0"
     );
     assert!(container_block.units.is_empty());
     assert_eq!(
@@ -735,7 +735,7 @@ fn epub2_ncx_preserves_multifile_order_and_auxiliary_text() {
     );
     assert_eq!(
         first_oracle.id.to_string(),
-        "91b4607977ccfbc8ef48fd2128afe58e4fb409fe32343b58a61d879a855e1640"
+        "66b13839edd7b8445ec8b1588bcc1fff2e1ff931a9badc8d28461d55406b9592"
     );
     assert_eq!(
         grapheme_text(block(
@@ -1332,7 +1332,7 @@ fn nested_block_links_can_use_a_non_emitted_structural_ancestor() {
 
 #[test]
 fn parser_namespace_changes_ids_without_changing_unaffected_source_content() {
-    assert_eq!(PARSER_VERSION, "nt-epub/1.5.0");
+    assert_eq!(PARSER_VERSION, "nt-epub/1.6.0");
     let bytes = epub3(EPUB3_CHAPTER);
     let mut old_archive = EpubZip::new(Cursor::new(bytes.clone())).unwrap();
     let old_inventory = inspect(&mut old_archive);
@@ -1362,7 +1362,7 @@ fn parser_namespace_changes_ids_without_changing_unaffected_source_content() {
     );
     assert_eq!(
         new_block.id.to_string(),
-        "312ade704eb0499b84c9b198abc5be60d15cf74e23962f6b0367701e4344414e"
+        "21f704cc24bf345a206293a7ac7ef954f51059d310169a1e9b6d1740179f4d04"
     );
     assert_eq!(old_block.locator, new_block.locator);
     assert_eq!(old_block.units, new_block.units);
@@ -1561,7 +1561,7 @@ fn ruby_formatting_links_and_notes_keep_exact_atomic_metadata() {
     }
     assert_eq!(
         paragraph.id.to_string(),
-        "3ab137bdef365fe474935535a3cba7a624350b810e0a129dcd4b5fcc94bca46a"
+        "3133144974bd21e8bda37de09d28a128e8d8db48932b97e4a362f7f47b779185"
     );
     assert_eq!(
         paragraph
@@ -1589,22 +1589,22 @@ fn fallback_locator_order_is_local_to_each_element_path() {
         (
             vec![1, 0],
             0,
-            "56f68ac8ea51d16c771c7989fcdcc950597a8b7625c838a47efa09f84d8ff7ae",
+            "b95bdae70f7290d7564957bbbdcba9422e78b480ea780a75d740176b67ef6c54",
         ),
         (
             vec![1, 0, 0],
             0,
-            "5f0b4d6a9b5150f9d15cbbde203b0852025c670e619d0010e8f3c83fad9c15ae",
+            "83ce76277fb8fd15aac74bd6ea2525ebe880b716aad4842c904dfb0cf36d1859",
         ),
         (
             vec![1, 0],
             1,
-            "cd0114f1658b67fb744f76c212f782fa152cf35df3b67086902b5cd41c71dee8",
+            "75a41ae824a524d9310492bfd4a4b87dc6cc5b127ae5b6338bfec018aa759fb3",
         ),
         (
             vec![1, 1],
             0,
-            "e675dd38f551b7d2b05e7956416e7ab0ca2790c8a76d9754eac325b72b9020aa",
+            "9ebf3a41d8280b44ceeaec46ea10d82a0524653bcb0a655488bbd793a1067790",
         ),
     ];
     for (block, (path, order, hash)) in blocks.iter().zip(expected) {

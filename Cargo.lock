@@ -664,8 +664,10 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "nt-application",
+ "nt-epub",
  "nt-storage",
  "nt-tui",
+ "rusqlite",
  "serde",
  "serde_json",
  "tracing",
