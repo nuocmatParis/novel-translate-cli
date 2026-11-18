@@ -1,0 +1,4278 @@
+{
+  "version": 2,
+  "date": "2026-11-12",
+  "baseline": {
+    "milestone": "M1-r01",
+    "review": "docs/roadmap/evidence/phase-01/M1.review-r01.md",
+    "reviewedHead": "14edc793988ecffed7961bc48ac2b65c12ba9eed",
+    "mergedCommit": "9fb133078a126171186a0a12a1359443746363d8",
+    "pr": "https://github.com/nuocmatParis/novel-translate-cli/pull/1"
+  },
+  "completedRoots": [
+    "M0-02",
+    "M1"
+  ],
+  "milestones": {
+    "M2": "P02-T13",
+    "M3": "P03-T15",
+    "M4": "P04-T13",
+    "M5": "P05-T16",
+    "M6": "P06-T16",
+    "M7": "P07-T15",
+    "M8": "P08-T12",
+    "M9": "P09-T12"
+  },
+  "tasks": [
+    {
+      "id": "P02-T01",
+      "phase": "P02",
+      "title": "Workspace schema và create/open",
+      "dependencies": [
+        "M0-02",
+        "M1"
+      ],
+      "checks": [
+        "V-01"
+      ],
+      "checkpoint": "P02-CP01",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T02",
+      "phase": "P02",
+      "title": "Kho file bất biến và tài nguyên nguồn",
+      "dependencies": [
+        "P02-T01"
+      ],
+      "checks": [
+        "V-02"
+      ],
+      "checkpoint": "P02-CP01",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T03",
+      "phase": "P02",
+      "title": "Generation bootstrap, writer và CAS",
+      "dependencies": [
+        "P02-T01",
+        "P02-T02"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P02-CP02",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T04",
+      "phase": "P02",
+      "title": "Safe ZIP và giới hạn tài nguyên",
+      "dependencies": [
+        "P02-T02"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P02-CP03",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T05",
+      "phase": "P02",
+      "title": "OPF, spine, Nav/NCX và phạm vi hỗ trợ",
+      "dependencies": [
+        "P02-T04"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P02-CP03",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T06",
+      "phase": "P02",
+      "title": "SourceBlock và SourceRange ổn định",
+      "dependencies": [
+        "P02-T05"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P02-CP04",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T07",
+      "phase": "P02",
+      "title": "Dựng chương logic và chẩn đoán ranh giới",
+      "dependencies": [
+        "P02-T05",
+        "P02-T06"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P02-CP04",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T08",
+      "phase": "P02",
+      "title": "Phân loại nội dung và mặc định phạm vi",
+      "dependencies": [
+        "P02-T06",
+        "P02-T07"
+      ],
+      "checks": [
+        "V-09"
+      ],
+      "checkpoint": "P02-CP05",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T09",
+      "phase": "P02",
+      "title": "Use case import và publication",
+      "dependencies": [
+        "P02-T01",
+        "P02-T02",
+        "P02-T03",
+        "P02-T04",
+        "P02-T05",
+        "P02-T06",
+        "P02-T07",
+        "P02-T08"
+      ],
+      "checks": [
+        "V-06"
+      ],
+      "checkpoint": "P02-CP05",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T10",
+      "phase": "P02",
+      "title": "Gộp, tách, dời và đổi tên mapping",
+      "dependencies": [
+        "P02-T09"
+      ],
+      "checks": [
+        "V-05",
+        "V-06"
+      ],
+      "checkpoint": "P02-CP06",
+      "parallelExamples": [
+        "P03-T01",
+        "P03-T02",
+        "P03-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T11",
+      "phase": "P02",
+      "title": "UI-02 và CLI tạo/mở workspace",
+      "dependencies": [
+        "P02-T01",
+        "P02-T03"
+      ],
+      "checks": [
+        "V-06",
+        "V-07",
+        "V-10"
+      ],
+      "checkpoint": "P02-CP02",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T12",
+      "phase": "P02",
+      "title": "UI-03, CLI import/scope và cây nguồn",
+      "dependencies": [
+        "P02-T08",
+        "P02-T09",
+        "P02-T10",
+        "P02-T11"
+      ],
+      "checks": [
+        "V-06",
+        "V-07",
+        "V-10"
+      ],
+      "checkpoint": "P02-CP06",
+      "parallelExamples": [
+        "P03-T01",
+        "P03-T02",
+        "P03-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T13",
+      "phase": "P02",
+      "title": "Recovery, migration và bàn giao M2",
+      "dependencies": [
+        "P02-T01",
+        "P02-T02",
+        "P02-T03",
+        "P02-T04",
+        "P02-T05",
+        "P02-T06",
+        "P02-T07",
+        "P02-T08",
+        "P02-T09",
+        "P02-T10",
+        "P02-T11",
+        "P02-T12"
+      ],
+      "checks": [
+        "V-08",
+        "V-10",
+        "V-00"
+      ],
+      "checkpoint": "P02-CP07",
+      "parallelExamples": [
+        "P03-T01",
+        "P03-T02",
+        "P03-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T01",
+      "phase": "P03",
+      "title": "Revision lineage và ba trục trạng thái",
+      "dependencies": [
+        "P02-T09"
+      ],
+      "checks": [
+        "V-01",
+        "V-02"
+      ],
+      "checkpoint": "P03-CP01",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P07-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T02",
+      "phase": "P03",
+      "title": "Generation cho revision và Markdown outbox",
+      "dependencies": [
+        "P03-T01"
+      ],
+      "checks": [
+        "V-02"
+      ],
+      "checkpoint": "P03-CP01",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P07-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T03",
+      "phase": "P03",
+      "title": "Đồng bộ Markdown và so sánh ba phía",
+      "dependencies": [
+        "P03-T01",
+        "P03-T02"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P03-CP02",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P04-T01"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T04",
+      "phase": "P03",
+      "title": "Dependency graph và occurrence index",
+      "dependencies": [
+        "P03-T01",
+        "P03-T02"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P03-CP03",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P07-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T05",
+      "phase": "P03",
+      "title": "Skill template, import và loại nội dung",
+      "dependencies": [
+        "P03-T04"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P03-CP03",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P07-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T06",
+      "phase": "P03",
+      "title": "Nhân vật, bí danh và xưng hô theo thời điểm",
+      "dependencies": [
+        "P03-T04",
+        "P03-T05"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P03-CP04",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P07-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T07",
+      "phase": "P03",
+      "title": "Context resolver và ưu tiên quy tắc",
+      "dependencies": [
+        "P03-T04",
+        "P03-T05",
+        "P03-T06"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P03-CP04",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P07-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T08",
+      "phase": "P03",
+      "title": "Gom candidates và lần xuất hiện",
+      "dependencies": [
+        "P03-T05",
+        "P03-T06",
+        "P03-T07"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P03-CP05",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P04-T01"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T09",
+      "phase": "P03",
+      "title": "Approval batch theo danh sách/version",
+      "dependencies": [
+        "P03-T04",
+        "P03-T05",
+        "P03-T06",
+        "P03-T07",
+        "P03-T08"
+      ],
+      "checks": [
+        "V-06"
+      ],
+      "checkpoint": "P03-CP05",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P04-T01"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T10",
+      "phase": "P03",
+      "title": "Skill publish và đồng bộ file ngoài có recovery",
+      "dependencies": [
+        "P03-T09"
+      ],
+      "checks": [
+        "V-06",
+        "V-08"
+      ],
+      "checkpoint": "P03-CP05",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P04-T01"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T11",
+      "phase": "P03",
+      "title": "UI-04 đọc nguồn, nháp và lịch sử",
+      "dependencies": [
+        "P03-T01",
+        "P03-T02",
+        "P03-T03"
+      ],
+      "checks": [
+        "V-07",
+        "V-11"
+      ],
+      "checkpoint": "P03-CP02",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P04-T01"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T12",
+      "phase": "P03",
+      "title": "UI-04 sửa, lưu và xử lý conflict",
+      "dependencies": [
+        "P03-T03",
+        "P03-T11"
+      ],
+      "checks": [
+        "V-07",
+        "V-11"
+      ],
+      "checkpoint": "P03-CP02",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P04-T01"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T13",
+      "phase": "P03",
+      "title": "CLI terms list/confirm",
+      "dependencies": [
+        "P03-T09",
+        "P03-T10"
+      ],
+      "checks": [
+        "V-09"
+      ],
+      "checkpoint": "P03-CP06",
+      "parallelExamples": [
+        "P02-T10",
+        "P02-T12",
+        "P04-T01"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T14",
+      "phase": "P03",
+      "title": "Tái sử dụng đơn vị khi mapping hoặc nguồn đổi",
+      "dependencies": [
+        "P03-T01",
+        "P03-T02",
+        "P03-T03",
+        "P03-T04",
+        "P02-T10"
+      ],
+      "checks": [
+        "V-10"
+      ],
+      "checkpoint": "P03-CP07",
+      "parallelExamples": [
+        "P04-T01",
+        "P04-T02",
+        "P04-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P03-T15",
+      "phase": "P03",
+      "title": "Recovery và bàn giao M3",
+      "dependencies": [
+        "P03-T01",
+        "P03-T02",
+        "P03-T03",
+        "P03-T04",
+        "P03-T05",
+        "P03-T06",
+        "P03-T07",
+        "P03-T08",
+        "P03-T09",
+        "P03-T10",
+        "P03-T11",
+        "P03-T12",
+        "P03-T13",
+        "P03-T14",
+        "M2"
+      ],
+      "checks": [
+        "V-08",
+        "V-11",
+        "V-00"
+      ],
+      "checkpoint": "P03-CP08",
+      "parallelExamples": [
+        "P04-T01",
+        "P04-T02",
+        "P04-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T01",
+      "phase": "P04",
+      "title": "ModelGateway contract và fake xác định",
+      "dependencies": [
+        "P03-T07"
+      ],
+      "checks": [
+        "V-01"
+      ],
+      "checkpoint": "P04-CP01",
+      "parallelExamples": [
+        "P03-T03",
+        "P03-T08",
+        "P03-T09"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T02",
+      "phase": "P04",
+      "title": "Lập lượt từ toàn bộ request",
+      "dependencies": [
+        "P04-T01"
+      ],
+      "checks": [
+        "V-02"
+      ],
+      "checkpoint": "P04-CP01",
+      "parallelExamples": [
+        "P03-T03",
+        "P03-T08",
+        "P03-T09"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T03",
+      "phase": "P04",
+      "title": "JSON Dịch và sửa cấu trúc có giới hạn",
+      "dependencies": [
+        "P04-T01",
+        "P04-T02"
+      ],
+      "checks": [
+        "V-02"
+      ],
+      "checkpoint": "P04-CP02",
+      "parallelExamples": [
+        "P03-T03",
+        "P03-T08",
+        "P03-T09"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T04",
+      "phase": "P04",
+      "title": "Kiểm candidates và chặn quy ước chưa duyệt",
+      "dependencies": [
+        "P04-T03",
+        "P03-T08",
+        "P03-T09",
+        "P03-T10"
+      ],
+      "checks": [
+        "V-02"
+      ],
+      "checkpoint": "P04-CP02",
+      "parallelExamples": [
+        "P03-T03",
+        "P03-T11",
+        "P03-T12"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T05",
+      "phase": "P04",
+      "title": "Công bố nháp và supplied dependencies",
+      "dependencies": [
+        "P04-T03",
+        "P04-T04",
+        "P03-T02",
+        "P03-T04"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P04-CP02",
+      "parallelExamples": [
+        "P03-T03",
+        "P03-T11",
+        "P03-T12"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T06",
+      "phase": "P04",
+      "title": "Review đọc nguồn độc lập",
+      "dependencies": [
+        "P04-T01",
+        "P04-T02"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P04-CP03",
+      "parallelExamples": [
+        "P03-T03",
+        "P03-T08",
+        "P03-T09"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T07",
+      "phase": "P04",
+      "title": "Comparison, issue và coverage",
+      "dependencies": [
+        "P04-T05",
+        "P04-T06"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P04-CP04",
+      "parallelExamples": [
+        "P03-T03",
+        "P03-T11",
+        "P03-T12"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T08",
+      "phase": "P04",
+      "title": "Workflow nhiều lượt có Review ngay",
+      "dependencies": [
+        "P04-T02",
+        "P04-T03",
+        "P04-T04",
+        "P04-T05",
+        "P04-T06",
+        "P04-T07"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P04-CP04",
+      "parallelExamples": [
+        "P03-T03",
+        "P03-T11",
+        "P03-T12"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T09",
+      "phase": "P04",
+      "title": "Review tổng thể chương tối thiểu",
+      "dependencies": [
+        "P04-T07",
+        "P04-T08"
+      ],
+      "checks": [
+        "V-04",
+        "V-05"
+      ],
+      "checkpoint": "P04-CP04",
+      "parallelExamples": [
+        "P03-T03",
+        "P03-T11",
+        "P03-T12"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T10",
+      "phase": "P04",
+      "title": "Checkpoint tối thiểu và restart",
+      "dependencies": [
+        "P04-T08",
+        "P04-T09"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P04-CP05",
+      "parallelExamples": [
+        "P03-T03",
+        "P03-T11",
+        "P03-T12"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T11",
+      "phase": "P04",
+      "title": "UI-05 danh sách lỗi",
+      "dependencies": [
+        "P04-T07",
+        "P04-T09"
+      ],
+      "checks": [
+        "V-06",
+        "V-08"
+      ],
+      "checkpoint": "P04-CP06",
+      "parallelExamples": [
+        "P03-T03",
+        "P03-T11",
+        "P03-T12"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T12",
+      "phase": "P04",
+      "title": "UI-05 thẻ bằng chứng và mở Editor",
+      "dependencies": [
+        "P04-T11",
+        "P03-T12"
+      ],
+      "checks": [
+        "V-06",
+        "V-08"
+      ],
+      "checkpoint": "P04-CP06",
+      "parallelExamples": [
+        "P03-T13",
+        "P03-T14",
+        "P05-T01"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P04-T13",
+      "phase": "P04",
+      "title": "Nghiệm thu luồng offline và M4",
+      "dependencies": [
+        "P04-T01",
+        "P04-T02",
+        "P04-T03",
+        "P04-T04",
+        "P04-T05",
+        "P04-T06",
+        "P04-T07",
+        "P04-T08",
+        "P04-T09",
+        "P04-T10",
+        "P04-T11",
+        "P04-T12",
+        "M3"
+      ],
+      "checks": [
+        "V-07",
+        "V-08",
+        "V-00"
+      ],
+      "checkpoint": "P04-CP07",
+      "parallelExamples": [
+        "P05-T01",
+        "P05-T02",
+        "P05-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T01",
+      "phase": "P05",
+      "title": "Connections, model roles và credentials",
+      "dependencies": [
+        "P04-T01",
+        "P03-T02"
+      ],
+      "checks": [
+        "V-01"
+      ],
+      "checkpoint": "P05-CP01",
+      "parallelExamples": [
+        "P04-T03",
+        "P04-T04",
+        "P04-T05"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T02",
+      "phase": "P05",
+      "title": "Provider gateway và normalize response",
+      "dependencies": [
+        "P05-T01"
+      ],
+      "checks": [
+        "V-02"
+      ],
+      "checkpoint": "P05-CP01",
+      "parallelExamples": [
+        "P04-T03",
+        "P04-T04",
+        "P04-T05"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T03",
+      "phase": "P05",
+      "title": "Tokenizer và planner theo model",
+      "dependencies": [
+        "P05-T02",
+        "P04-T02"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P05-CP02",
+      "parallelExamples": [
+        "P04-T03",
+        "P04-T04",
+        "P04-T05"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T04",
+      "phase": "P05",
+      "title": "Money, pricing và usage ledger",
+      "dependencies": [
+        "P05-T02"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P05-CP02",
+      "parallelExamples": [
+        "P04-T03",
+        "P04-T04",
+        "P04-T05"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T05",
+      "phase": "P05",
+      "title": "Reservation, hạn mức tiền và call cap",
+      "dependencies": [
+        "P05-T03",
+        "P05-T04"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P05-CP02",
+      "parallelExamples": [
+        "P04-T03",
+        "P04-T04",
+        "P04-T05"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T06",
+      "phase": "P05",
+      "title": "Durable request/attempt intent",
+      "dependencies": [
+        "P05-T05",
+        "P04-T10"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P05-CP03",
+      "parallelExamples": [
+        "P04-T11",
+        "P04-T12",
+        "P03-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T07",
+      "phase": "P05",
+      "title": "Timeout và retry có giới hạn",
+      "dependencies": [
+        "P05-T02",
+        "P05-T06"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P05-CP04",
+      "parallelExamples": [
+        "P04-T11",
+        "P04-T12",
+        "P03-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T08",
+      "phase": "P05",
+      "title": "Late response fencing và publication",
+      "dependencies": [
+        "P05-T06",
+        "P05-T07",
+        "P04-T05"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P05-CP04",
+      "parallelExamples": [
+        "P04-T11",
+        "P04-T12",
+        "P03-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T09",
+      "phase": "P05",
+      "title": "Coordinator process, IPC và OS lock",
+      "dependencies": [
+        "P05-T06"
+      ],
+      "checks": [
+        "V-06"
+      ],
+      "checkpoint": "P05-CP05",
+      "parallelExamples": [
+        "P04-T11",
+        "P04-T12",
+        "P03-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T10",
+      "phase": "P05",
+      "title": "Queue, grant và task eligibility",
+      "dependencies": [
+        "P05-T06",
+        "P05-T09",
+        "P03-T04",
+        "P03-T10"
+      ],
+      "checks": [
+        "V-06"
+      ],
+      "checkpoint": "P05-CP05",
+      "parallelExamples": [
+        "P04-T11",
+        "P04-T12",
+        "P03-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T11",
+      "phase": "P05",
+      "title": "Handoff và đối chiếu hai SQLite",
+      "dependencies": [
+        "P05-T08",
+        "P05-T10"
+      ],
+      "checks": [
+        "V-06",
+        "V-07"
+      ],
+      "checkpoint": "P05-CP06",
+      "parallelExamples": [
+        "P04-T11",
+        "P04-T12",
+        "P03-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T12",
+      "phase": "P05",
+      "title": "Recovery checkpoint và resume",
+      "dependencies": [
+        "P05-T06",
+        "P05-T07",
+        "P05-T08",
+        "P05-T09",
+        "P05-T10",
+        "P05-T11",
+        "P04-T10"
+      ],
+      "checks": [
+        "V-07"
+      ],
+      "checkpoint": "P05-CP06",
+      "parallelExamples": [
+        "P04-T11",
+        "P04-T12",
+        "P03-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T13",
+      "phase": "P05",
+      "title": "UI-06 Tasks và quyền chạy thực tế",
+      "dependencies": [
+        "P05-T03",
+        "P05-T10",
+        "P05-T11",
+        "P05-T12"
+      ],
+      "checks": [
+        "V-08",
+        "V-11"
+      ],
+      "checkpoint": "P05-CP08",
+      "parallelExamples": [
+        "P04-T11",
+        "P04-T12",
+        "P06-T01"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T14",
+      "phase": "P05",
+      "title": "UI-07 Connections, model và budget",
+      "dependencies": [
+        "P05-T01",
+        "P05-T03",
+        "P05-T04",
+        "P05-T05"
+      ],
+      "checks": [
+        "V-08",
+        "V-11"
+      ],
+      "checkpoint": "P05-CP07",
+      "parallelExamples": [
+        "P04-T03",
+        "P04-T04",
+        "P04-T05"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T15",
+      "phase": "P05",
+      "title": "CLI và nối dispatch an toàn",
+      "dependencies": [
+        "P05-T08",
+        "P05-T09",
+        "P05-T10",
+        "P05-T11",
+        "P05-T12",
+        "P05-T14"
+      ],
+      "checks": [
+        "V-09"
+      ],
+      "checkpoint": "P05-CP08",
+      "parallelExamples": [
+        "P04-T11",
+        "P04-T12",
+        "P06-T01"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P05-T16",
+      "phase": "P05",
+      "title": "Multi-process fault campaign và M5",
+      "dependencies": [
+        "P05-T01",
+        "P05-T02",
+        "P05-T03",
+        "P05-T04",
+        "P05-T05",
+        "P05-T06",
+        "P05-T07",
+        "P05-T08",
+        "P05-T09",
+        "P05-T10",
+        "P05-T11",
+        "P05-T12",
+        "P05-T13",
+        "P05-T14",
+        "P05-T15",
+        "M4"
+      ],
+      "checks": [
+        "V-07",
+        "V-10",
+        "V-11",
+        "V-00"
+      ],
+      "checkpoint": "P05-CP09",
+      "parallelExamples": [
+        "P06-T01",
+        "P06-T02",
+        "P06-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T01",
+      "phase": "P06",
+      "title": "Phạm vi tác vụ và tự động đến hết",
+      "dependencies": [
+        "P05-T12",
+        "P04-T09",
+        "P03-T10"
+      ],
+      "checks": [
+        "V-01"
+      ],
+      "checkpoint": "P06-CP01",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T02",
+      "phase": "P06",
+      "title": "Context preflight đầy đủ trước mỗi lượt",
+      "dependencies": [
+        "P06-T01"
+      ],
+      "checks": [
+        "V-01"
+      ],
+      "checkpoint": "P06-CP01",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T03",
+      "phase": "P06",
+      "title": "Review evidence và ý nghĩa có kiểm chứng",
+      "dependencies": [
+        "P06-T02",
+        "P04-T07",
+        "P04-T09"
+      ],
+      "checks": [
+        "V-02"
+      ],
+      "checkpoint": "P06-CP01",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T04",
+      "phase": "P06",
+      "title": "Repair M1 và M2",
+      "dependencies": [
+        "P06-T03"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P06-CP02",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T05",
+      "phase": "P06",
+      "title": "Repair M3 và phụ thuộc xuyên cảnh",
+      "dependencies": [
+        "P06-T04"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P06-CP02",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T06",
+      "phase": "P06",
+      "title": "M4 với kiểm chứng nguồn bổ sung",
+      "dependencies": [
+        "P06-T03",
+        "P06-T05"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P06-CP03",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T07",
+      "phase": "P06",
+      "title": "Repair rounds và giới hạn năm vòng",
+      "dependencies": [
+        "P06-T04",
+        "P06-T05",
+        "P06-T06"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P06-CP03",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T08",
+      "phase": "P06",
+      "title": "Ngoại lệ người dùng gắn revision và căn cứ",
+      "dependencies": [
+        "P06-T03",
+        "P06-T07"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P06-CP03",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T09",
+      "phase": "P06",
+      "title": "Research nội bộ, Brave search và page reader",
+      "dependencies": [
+        "P06-T03"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P06-CP04",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T10",
+      "phase": "P06",
+      "title": "Research limits, cache và thời hạn",
+      "dependencies": [
+        "P06-T09"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P06-CP04",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T11",
+      "phase": "P06",
+      "title": "Evidence Research và giới hạn spoiler",
+      "dependencies": [
+        "P06-T09",
+        "P06-T10"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P06-CP04",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T12",
+      "phase": "P06",
+      "title": "Propagation, chờ và resume toàn workflow",
+      "dependencies": [
+        "P06-T01",
+        "P06-T02",
+        "P06-T03",
+        "P06-T04",
+        "P06-T05",
+        "P06-T06",
+        "P06-T07",
+        "P06-T08",
+        "P06-T09",
+        "P06-T10",
+        "P06-T11",
+        "P03-T10"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P06-CP05",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T13",
+      "phase": "P06",
+      "title": "UI-08 và bắt đầu Dịch theo phạm vi",
+      "dependencies": [
+        "P06-T01",
+        "P06-T12",
+        "P02-T12"
+      ],
+      "checks": [
+        "V-06"
+      ],
+      "checkpoint": "P06-CP06",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T14",
+      "phase": "P06",
+      "title": "UI-09 Review lại và Research evidence",
+      "dependencies": [
+        "P06-T03",
+        "P06-T11",
+        "P06-T12",
+        "P04-T12"
+      ],
+      "checks": [
+        "V-06"
+      ],
+      "checkpoint": "P06-CP06",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T15",
+      "phase": "P06",
+      "title": "UI-10 duyệt Skills và ngữ cảnh",
+      "dependencies": [
+        "P06-T12",
+        "P03-T05",
+        "P03-T09",
+        "P03-T10"
+      ],
+      "checks": [
+        "V-06"
+      ],
+      "checkpoint": "P06-CP07",
+      "parallelExamples": [
+        "P05-T13",
+        "P05-T14",
+        "P05-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P06-T16",
+      "phase": "P06",
+      "title": "Nghiệm thu workflow đầy đủ",
+      "dependencies": [
+        "P06-T01",
+        "P06-T02",
+        "P06-T03",
+        "P06-T04",
+        "P06-T05",
+        "P06-T06",
+        "P06-T07",
+        "P06-T08",
+        "P06-T09",
+        "P06-T10",
+        "P06-T11",
+        "P06-T12",
+        "P06-T13",
+        "P06-T14",
+        "P06-T15",
+        "M5"
+      ],
+      "checks": [
+        "V-07",
+        "V-00"
+      ],
+      "checkpoint": "P06-CP08",
+      "parallelExamples": [
+        "P07-T01",
+        "P07-T02",
+        "P07-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T01",
+      "phase": "P07",
+      "title": "Readiness theo phạm vi và revision set",
+      "dependencies": [
+        "P06-T08",
+        "P06-T12",
+        "P02-T08",
+        "P04-T09"
+      ],
+      "checks": [
+        "V-01"
+      ],
+      "checkpoint": "P07-CP02",
+      "parallelExamples": [
+        "P06-T13",
+        "P06-T14",
+        "P06-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T02",
+      "phase": "P07",
+      "title": "Khớp và kiểm ảnh thay",
+      "dependencies": [
+        "P02-T09"
+      ],
+      "checks": [
+        "V-02"
+      ],
+      "checkpoint": "P07-CP01",
+      "parallelExamples": [
+        "P06-T01",
+        "P06-T02",
+        "P06-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T03",
+      "phase": "P07",
+      "title": "Stable image capture và change detection",
+      "dependencies": [
+        "P07-T02",
+        "P02-T02"
+      ],
+      "checks": [
+        "V-02"
+      ],
+      "checkpoint": "P07-CP01",
+      "parallelExamples": [
+        "P06-T01",
+        "P06-T02",
+        "P06-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T04",
+      "phase": "P07",
+      "title": "PreparedBundle manifest bất biến",
+      "dependencies": [
+        "P07-T01",
+        "P07-T03",
+        "P03-T02",
+        "P06-T12"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P07-CP02",
+      "parallelExamples": [
+        "P06-T13",
+        "P06-T14",
+        "P06-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T05",
+      "phase": "P07",
+      "title": "Render XHTML/CSS an toàn",
+      "dependencies": [
+        "P07-T04"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P07-CP02",
+      "parallelExamples": [
+        "P06-T13",
+        "P06-T14",
+        "P06-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T06",
+      "phase": "P07",
+      "title": "Dựng EPUB 3.3 và chuyển nguồn EPUB 2",
+      "dependencies": [
+        "P07-T04",
+        "P07-T05"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P07-CP03",
+      "parallelExamples": [
+        "P06-T13",
+        "P06-T14",
+        "P06-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T07",
+      "phase": "P07",
+      "title": "Readback và EPUBCheck",
+      "dependencies": [
+        "P07-T06"
+      ],
+      "checks": [
+        "V-05",
+        "V-06"
+      ],
+      "checkpoint": "P07-CP03",
+      "parallelExamples": [
+        "P06-T13",
+        "P06-T14",
+        "P06-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T08",
+      "phase": "P07",
+      "title": "Reserve số phiên bản và export operation",
+      "dependencies": [
+        "P07-T04"
+      ],
+      "checks": [
+        "V-07"
+      ],
+      "checkpoint": "P07-CP04",
+      "parallelExamples": [
+        "P06-T13",
+        "P06-T14",
+        "P06-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T09",
+      "phase": "P07",
+      "title": "Publish giữ file cũ và recovery",
+      "dependencies": [
+        "P07-T07",
+        "P07-T08"
+      ],
+      "checks": [
+        "V-07"
+      ],
+      "checkpoint": "P07-CP04",
+      "parallelExamples": [
+        "P06-T13",
+        "P06-T14",
+        "P06-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T10",
+      "phase": "P07",
+      "title": "Preview server và quyền phiên",
+      "dependencies": [
+        "P07-T04",
+        "P07-T05"
+      ],
+      "checks": [
+        "V-08"
+      ],
+      "checkpoint": "P07-CP05",
+      "parallelExamples": [
+        "P06-T13",
+        "P06-T14",
+        "P06-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T11",
+      "phase": "P07",
+      "title": "Viewer cô lập và asset allowlist",
+      "dependencies": [
+        "P07-T05",
+        "P07-T10"
+      ],
+      "checks": [
+        "V-08"
+      ],
+      "checkpoint": "P07-CP05",
+      "parallelExamples": [
+        "P06-T13",
+        "P06-T14",
+        "P06-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T12",
+      "phase": "P07",
+      "title": "UI-11 xem ảnh và lỗi",
+      "dependencies": [
+        "P07-T02",
+        "P07-T03",
+        "P07-T11"
+      ],
+      "checks": [
+        "V-09"
+      ],
+      "checkpoint": "P07-CP06",
+      "parallelExamples": [
+        "P06-T13",
+        "P06-T14",
+        "P06-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T13",
+      "phase": "P07",
+      "title": "UI-12 readiness và Preview",
+      "dependencies": [
+        "P07-T01",
+        "P07-T04",
+        "P07-T10",
+        "P07-T11"
+      ],
+      "checks": [
+        "V-09"
+      ],
+      "checkpoint": "P07-CP06",
+      "parallelExamples": [
+        "P06-T13",
+        "P06-T14",
+        "P06-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T14",
+      "phase": "P07",
+      "title": "UI-13 export và lịch sử",
+      "dependencies": [
+        "P07-T07",
+        "P07-T08",
+        "P07-T09",
+        "P07-T13"
+      ],
+      "checks": [
+        "V-09"
+      ],
+      "checkpoint": "P07-CP07",
+      "parallelExamples": [
+        "P06-T13",
+        "P06-T14",
+        "P06-T15"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P07-T15",
+      "phase": "P07",
+      "title": "Nghiệm thu bảo mật, recovery và trình đọc",
+      "dependencies": [
+        "P07-T01",
+        "P07-T02",
+        "P07-T03",
+        "P07-T04",
+        "P07-T05",
+        "P07-T06",
+        "P07-T07",
+        "P07-T08",
+        "P07-T09",
+        "P07-T10",
+        "P07-T11",
+        "P07-T12",
+        "P07-T13",
+        "P07-T14",
+        "M6"
+      ],
+      "checks": [
+        "V-10",
+        "V-00"
+      ],
+      "checkpoint": "P07-CP08",
+      "parallelExamples": [
+        "P08-T01",
+        "P08-T02",
+        "P08-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P08-T01",
+      "phase": "P08",
+      "title": "Lập coverage matrix màn, hành động và commands",
+      "dependencies": [
+        "P02-T12",
+        "P03-T13",
+        "P04-T12",
+        "P05-T13",
+        "P05-T15",
+        "P06-T13",
+        "P06-T14",
+        "P06-T15",
+        "P07-T12",
+        "P07-T14"
+      ],
+      "checks": [
+        "V-01"
+      ],
+      "checkpoint": "P08-CP01",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02",
+        "P03-T14"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P08-T02",
+      "phase": "P08",
+      "title": "UI-14 Tổng quan và deep links",
+      "dependencies": [
+        "P08-T01",
+        "P06-T12",
+        "P07-T14",
+        "P05-T13"
+      ],
+      "checks": [
+        "V-02"
+      ],
+      "checkpoint": "P08-CP02",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02",
+        "P03-T14"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P08-T03",
+      "phase": "P08",
+      "title": "UI-14 Cấu hình, báo cáo và help",
+      "dependencies": [
+        "P08-T01",
+        "P05-T14",
+        "P07-T14"
+      ],
+      "checks": [
+        "V-02"
+      ],
+      "checkpoint": "P08-CP02",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02",
+        "P03-T14"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P08-T04",
+      "phase": "P08",
+      "title": "State navigation theo dữ liệu đang xem",
+      "dependencies": [
+        "P08-T01",
+        "P03-T12",
+        "P04-T12",
+        "P05-T13",
+        "P06-T15",
+        "P07-T14"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P08-CP03",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02",
+        "P03-T14"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P08-T05",
+      "phase": "P08",
+      "title": "UI-15 keyboard và input routing",
+      "dependencies": [
+        "P08-T02",
+        "P08-T03",
+        "P08-T04"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P08-CP04",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02",
+        "P03-T14"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P08-T06",
+      "phase": "P08",
+      "title": "UI-15 layout và Unicode trên tám màn",
+      "dependencies": [
+        "P08-T04",
+        "P08-T05"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P08-CP04",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02",
+        "P03-T14"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P08-T07",
+      "phase": "P08",
+      "title": "CLI grammar, flags và JSON schema",
+      "dependencies": [
+        "P08-T01",
+        "P02-T12",
+        "P03-T13",
+        "P05-T15",
+        "P06-T13",
+        "P06-T14",
+        "P06-T15",
+        "P07-T14"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P08-CP05",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02",
+        "P03-T14"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P08-T08",
+      "phase": "P08",
+      "title": "CLI non-interactive và tiếp tục tác vụ",
+      "dependencies": [
+        "P08-T07"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P08-CP05",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02",
+        "P03-T14"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P08-T09",
+      "phase": "P08",
+      "title": "Parity CLI và TUI tại boundary",
+      "dependencies": [
+        "P08-T07",
+        "P08-T08",
+        "P08-T02",
+        "P08-T03",
+        "P08-T06"
+      ],
+      "checks": [
+        "V-06"
+      ],
+      "checkpoint": "P08-CP06",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02",
+        "P03-T14"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P08-T10",
+      "phase": "P08",
+      "title": "Luồng Reviewer–Editor và bảo vệ nháp",
+      "dependencies": [
+        "P08-T04",
+        "P08-T05",
+        "P08-T06"
+      ],
+      "checks": [
+        "V-07"
+      ],
+      "checkpoint": "P08-CP07",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02",
+        "P03-T14"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P08-T11",
+      "phase": "P08",
+      "title": "Luồng Tasks–Skills–Export và quyền chạy",
+      "dependencies": [
+        "P08-T04",
+        "P08-T05",
+        "P08-T06",
+        "P08-T07",
+        "P08-T08",
+        "P08-T09"
+      ],
+      "checks": [
+        "V-07"
+      ],
+      "checkpoint": "P08-CP07",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02",
+        "P03-T14"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P08-T12",
+      "phase": "P08",
+      "title": "Nghiệm thu tám màn và toàn CLI",
+      "dependencies": [
+        "P08-T01",
+        "P08-T02",
+        "P08-T03",
+        "P08-T04",
+        "P08-T05",
+        "P08-T06",
+        "P08-T07",
+        "P08-T08",
+        "P08-T09",
+        "P08-T10",
+        "P08-T11",
+        "M7"
+      ],
+      "checks": [
+        "V-08",
+        "V-00"
+      ],
+      "checkpoint": "P08-CP08",
+      "parallelExamples": [
+        "P09-T01",
+        "P09-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P09-T01",
+      "phase": "P09",
+      "title": "Ma trận nghiệm thu release và phạm vi",
+      "dependencies": [
+        "M1"
+      ],
+      "checks": [
+        "V-01"
+      ],
+      "checkpoint": "P09-CP01",
+      "parallelExamples": [
+        "P08-T01",
+        "P08-T02",
+        "P08-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P09-T02",
+      "phase": "P09",
+      "title": "Bộ chuẩn 30 tình huống và 3 chương",
+      "dependencies": [
+        "P09-T01"
+      ],
+      "checks": [
+        "V-02"
+      ],
+      "checkpoint": "P09-CP02",
+      "parallelExamples": [
+        "P08-T01",
+        "P08-T02",
+        "P08-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P09-T03",
+      "phase": "P09",
+      "title": "Đánh giá model thật có ngân sách",
+      "dependencies": [
+        "P09-T02",
+        "P09-T10"
+      ],
+      "checks": [
+        "V-03"
+      ],
+      "checkpoint": "P09-CP07",
+      "parallelExamples": [],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P09-T04",
+      "phase": "P09",
+      "title": "Crash và phục hồi xuyên subsystem",
+      "dependencies": [
+        "P09-T01",
+        "P09-T10"
+      ],
+      "checks": [
+        "V-04"
+      ],
+      "checkpoint": "P09-CP04",
+      "parallelExamples": [],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P09-T05",
+      "phase": "P09",
+      "title": "Migration Rust, backup và rollback",
+      "dependencies": [
+        "P09-T01",
+        "P09-T10"
+      ],
+      "checks": [
+        "V-05"
+      ],
+      "checkpoint": "P09-CP04",
+      "parallelExamples": [],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P09-T06",
+      "phase": "P09",
+      "title": "Security và redaction toàn hệ thống",
+      "dependencies": [
+        "P09-T01",
+        "P09-T10"
+      ],
+      "checks": [
+        "V-06"
+      ],
+      "checkpoint": "P09-CP05",
+      "parallelExamples": [],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P09-T07",
+      "phase": "P09",
+      "title": "Performance và giới hạn tài nguyên",
+      "dependencies": [
+        "P09-T01",
+        "P09-T10"
+      ],
+      "checks": [
+        "V-07"
+      ],
+      "checkpoint": "P09-CP05",
+      "parallelExamples": [],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P09-T08",
+      "phase": "P09",
+      "title": "UI/CLI và nền tảng trên artifact",
+      "dependencies": [
+        "P09-T01",
+        "P09-T10"
+      ],
+      "checks": [
+        "V-08"
+      ],
+      "checkpoint": "P09-CP06",
+      "parallelExamples": [],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P09-T09",
+      "phase": "P09",
+      "title": "EPUBCheck và nghiệm thu trình đọc",
+      "dependencies": [
+        "P09-T02",
+        "P09-T10"
+      ],
+      "checks": [
+        "V-09"
+      ],
+      "checkpoint": "P09-CP06",
+      "parallelExamples": [],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P09-T10",
+      "phase": "P09",
+      "title": "Đóng gói artifact và smoke từ môi trường sạch",
+      "dependencies": [
+        "P09-T01",
+        "M8"
+      ],
+      "checks": [
+        "V-10",
+        "V-00"
+      ],
+      "checkpoint": "P09-CP03",
+      "parallelExamples": [],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P09-T11",
+      "phase": "P09",
+      "title": "README, compatibility và parity matrix",
+      "dependencies": [
+        "P09-T04",
+        "P09-T05",
+        "P09-T06",
+        "P09-T07",
+        "P09-T08",
+        "P09-T09",
+        "P09-T10"
+      ],
+      "checks": [
+        "V-01",
+        "V-08"
+      ],
+      "checkpoint": "P09-CP08",
+      "parallelExamples": [],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P09-T12",
+      "phase": "P09",
+      "title": "Tổng hợp release dossier và kết luận M9",
+      "dependencies": [
+        "P09-T01",
+        "P09-T02",
+        "P09-T03",
+        "P09-T04",
+        "P09-T05",
+        "P09-T06",
+        "P09-T07",
+        "P09-T08",
+        "P09-T09",
+        "P09-T10",
+        "P09-T11",
+        "M8"
+      ],
+      "checks": [
+        "V-01",
+        "V-00"
+      ],
+      "checkpoint": "P09-CP09",
+      "parallelExamples": [],
+      "status": "Chưa bắt đầu"
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "P02-CP01",
+      "phase": "P02",
+      "title": "Workspace và kho file",
+      "tasks": [
+        "P02-T01",
+        "P02-T02"
+      ],
+      "dependencies": [
+        "M0-02",
+        "M1"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P02-T01",
+          "groups": [
+            "V-01"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T01; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P02-T02",
+          "groups": [
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T02; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P02-CP02",
+      "phase": "P02",
+      "title": "Writer và tạo/mở workspace",
+      "tasks": [
+        "P02-T03",
+        "P02-T11"
+      ],
+      "dependencies": [
+        "P02-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P02-T03",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T03; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P02-T11",
+          "groups": [
+            "V-06",
+            "V-07",
+            "V-10"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T11; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P02-CP03",
+      "phase": "P02",
+      "title": "Đọc ZIP và inventory EPUB",
+      "tasks": [
+        "P02-T04",
+        "P02-T05"
+      ],
+      "dependencies": [
+        "P02-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P02-T04",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T04; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P02-T05",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T05; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P02-CP04",
+      "phase": "P02",
+      "title": "Source ranges và cây chương",
+      "tasks": [
+        "P02-T06",
+        "P02-T07"
+      ],
+      "dependencies": [
+        "P02-CP03"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P02-T06",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T06; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P02-T07",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T07; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P02-CP05",
+      "phase": "P02",
+      "title": "Phạm vi nội dung và import bền vững",
+      "tasks": [
+        "P02-T08",
+        "P02-T09"
+      ],
+      "dependencies": [
+        "P02-CP01",
+        "P02-CP02",
+        "P02-CP03",
+        "P02-CP04"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P02-T08",
+          "groups": [
+            "V-09"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T08; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P02-T09",
+          "groups": [
+            "V-06"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T09; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P02-CP06",
+      "phase": "P02",
+      "title": "Sửa mapping và giao diện nhập tập",
+      "tasks": [
+        "P02-T10",
+        "P02-T12"
+      ],
+      "dependencies": [
+        "P02-CP02",
+        "P02-CP05"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P02-T10",
+          "groups": [
+            "V-05",
+            "V-06"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T10; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P02-T12",
+          "groups": [
+            "V-06",
+            "V-07",
+            "V-10"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T12; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P02-CP07",
+      "phase": "P02",
+      "title": "Recovery, migration và M2",
+      "tasks": [
+        "P02-T13"
+      ],
+      "dependencies": [
+        "P02-CP01",
+        "P02-CP02",
+        "P02-CP03",
+        "P02-CP04",
+        "P02-CP05",
+        "P02-CP06"
+      ],
+      "final": true,
+      "checks": [
+        {
+          "task": "P02-T13",
+          "groups": [
+            "V-08",
+            "V-10",
+            "V-00"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P02-T13; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P03-CP01",
+      "phase": "P03",
+      "title": "Revision và outbox",
+      "tasks": [
+        "P03-T01",
+        "P03-T02"
+      ],
+      "dependencies": [
+        "P02-CP05"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P03-T01",
+          "groups": [
+            "V-01",
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T01; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P03-T02",
+          "groups": [
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T02; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P03-CP02",
+      "phase": "P03",
+      "title": "Đồng bộ file và Editor",
+      "tasks": [
+        "P03-T03",
+        "P03-T11",
+        "P03-T12"
+      ],
+      "dependencies": [
+        "P03-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P03-T03",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T03; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P03-T11",
+          "groups": [
+            "V-07",
+            "V-11"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T11; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P03-T12",
+          "groups": [
+            "V-07",
+            "V-11"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T12; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P03-CP03",
+      "phase": "P03",
+      "title": "Dependency và nạp Skill",
+      "tasks": [
+        "P03-T04",
+        "P03-T05"
+      ],
+      "dependencies": [
+        "P03-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P03-T04",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T04; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P03-T05",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T05; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P03-CP04",
+      "phase": "P03",
+      "title": "Xưng hô và resolver",
+      "tasks": [
+        "P03-T06",
+        "P03-T07"
+      ],
+      "dependencies": [
+        "P03-CP03"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P03-T06",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T06; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P03-T07",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T07; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P03-CP05",
+      "phase": "P03",
+      "title": "Candidate, approval và công bố Skill",
+      "tasks": [
+        "P03-T08",
+        "P03-T09",
+        "P03-T10"
+      ],
+      "dependencies": [
+        "P03-CP03",
+        "P03-CP04"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P03-T08",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T08; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P03-T09",
+          "groups": [
+            "V-06"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T09; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P03-T10",
+          "groups": [
+            "V-06",
+            "V-08"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T10; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P03-CP06",
+      "phase": "P03",
+      "title": "CLI thuật ngữ",
+      "tasks": [
+        "P03-T13"
+      ],
+      "dependencies": [
+        "P03-CP05"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P03-T13",
+          "groups": [
+            "V-09"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T13; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P03-CP07",
+      "phase": "P03",
+      "title": "Reuse theo nguồn và mapping",
+      "tasks": [
+        "P03-T14"
+      ],
+      "dependencies": [
+        "P02-CP06",
+        "P03-CP01",
+        "P03-CP02",
+        "P03-CP03"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P03-T14",
+          "groups": [
+            "V-10"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T14; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P03-CP08",
+      "phase": "P03",
+      "title": "Nghiệm thu M3",
+      "tasks": [
+        "P03-T15"
+      ],
+      "dependencies": [
+        "M2",
+        "P03-CP01",
+        "P03-CP02",
+        "P03-CP03",
+        "P03-CP04",
+        "P03-CP05",
+        "P03-CP06",
+        "P03-CP07"
+      ],
+      "final": true,
+      "checks": [
+        {
+          "task": "P03-T15",
+          "groups": [
+            "V-08",
+            "V-11",
+            "V-00"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P03-T15; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P04-CP01",
+      "phase": "P04",
+      "title": "Gateway và planner giả lập",
+      "tasks": [
+        "P04-T01",
+        "P04-T02"
+      ],
+      "dependencies": [
+        "P03-CP04"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P04-T01",
+          "groups": [
+            "V-01"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T01; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P04-T02",
+          "groups": [
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T02; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P04-CP02",
+      "phase": "P04",
+      "title": "Dịch, candidate và công bố nháp",
+      "tasks": [
+        "P04-T03",
+        "P04-T04",
+        "P04-T05"
+      ],
+      "dependencies": [
+        "P03-CP01",
+        "P03-CP03",
+        "P03-CP05",
+        "P04-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P04-T03",
+          "groups": [
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T03; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P04-T04",
+          "groups": [
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T04; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P04-T05",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T05; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P04-CP03",
+      "phase": "P04",
+      "title": "Review đọc nguồn",
+      "tasks": [
+        "P04-T06"
+      ],
+      "dependencies": [
+        "P04-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P04-T06",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T06; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P04-CP04",
+      "phase": "P04",
+      "title": "Đối chiếu và workflow cấp chương",
+      "tasks": [
+        "P04-T07",
+        "P04-T08",
+        "P04-T09"
+      ],
+      "dependencies": [
+        "P04-CP01",
+        "P04-CP02",
+        "P04-CP03"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P04-T07",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T07; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P04-T08",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T08; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P04-T09",
+          "groups": [
+            "V-04",
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T09; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P04-CP05",
+      "phase": "P04",
+      "title": "Lưu bước và restart",
+      "tasks": [
+        "P04-T10"
+      ],
+      "dependencies": [
+        "P04-CP04"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P04-T10",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T10; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P04-CP06",
+      "phase": "P04",
+      "title": "Reviewer và mở Editor",
+      "tasks": [
+        "P04-T11",
+        "P04-T12"
+      ],
+      "dependencies": [
+        "P03-CP02",
+        "P04-CP04"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P04-T11",
+          "groups": [
+            "V-06",
+            "V-08"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T11; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P04-T12",
+          "groups": [
+            "V-06",
+            "V-08"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T12; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P04-CP07",
+      "phase": "P04",
+      "title": "Nghiệm thu M4",
+      "tasks": [
+        "P04-T13"
+      ],
+      "dependencies": [
+        "M3",
+        "P04-CP01",
+        "P04-CP02",
+        "P04-CP03",
+        "P04-CP04",
+        "P04-CP05",
+        "P04-CP06"
+      ],
+      "final": true,
+      "checks": [
+        {
+          "task": "P04-T13",
+          "groups": [
+            "V-07",
+            "V-08",
+            "V-00"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P04-T13; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P05-CP01",
+      "phase": "P05",
+      "title": "Connections và provider adapter",
+      "tasks": [
+        "P05-T01",
+        "P05-T02"
+      ],
+      "dependencies": [
+        "P03-CP01",
+        "P04-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P05-T01",
+          "groups": [
+            "V-01"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T01; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P05-T02",
+          "groups": [
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T02; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P05-CP02",
+      "phase": "P05",
+      "title": "Token, chi phí và hạn mức",
+      "tasks": [
+        "P05-T03",
+        "P05-T04",
+        "P05-T05"
+      ],
+      "dependencies": [
+        "P04-CP01",
+        "P05-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P05-T03",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T03; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P05-T04",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T04; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P05-T05",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T05; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P05-CP03",
+      "phase": "P05",
+      "title": "Request intent bền vững",
+      "tasks": [
+        "P05-T06"
+      ],
+      "dependencies": [
+        "P04-CP05",
+        "P05-CP02"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P05-T06",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T06; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P05-CP04",
+      "phase": "P05",
+      "title": "Retry và phản hồi tới muộn",
+      "tasks": [
+        "P05-T07",
+        "P05-T08"
+      ],
+      "dependencies": [
+        "P04-CP02",
+        "P05-CP01",
+        "P05-CP03"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P05-T07",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T07; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P05-T08",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T08; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P05-CP05",
+      "phase": "P05",
+      "title": "Coordinator và hàng đợi",
+      "tasks": [
+        "P05-T09",
+        "P05-T10"
+      ],
+      "dependencies": [
+        "P03-CP03",
+        "P03-CP05",
+        "P05-CP03"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P05-T09",
+          "groups": [
+            "V-06"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T09; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P05-T10",
+          "groups": [
+            "V-06"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T10; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P05-CP06",
+      "phase": "P05",
+      "title": "Handoff và phục hồi",
+      "tasks": [
+        "P05-T11",
+        "P05-T12"
+      ],
+      "dependencies": [
+        "P04-CP05",
+        "P05-CP03",
+        "P05-CP04",
+        "P05-CP05"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P05-T11",
+          "groups": [
+            "V-06",
+            "V-07"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T11; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P05-T12",
+          "groups": [
+            "V-07"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T12; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P05-CP07",
+      "phase": "P05",
+      "title": "Giao diện kết nối và ngân sách",
+      "tasks": [
+        "P05-T14"
+      ],
+      "dependencies": [
+        "P05-CP01",
+        "P05-CP02"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P05-T14",
+          "groups": [
+            "V-08",
+            "V-11"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T14; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P05-CP08",
+      "phase": "P05",
+      "title": "Tasks, CLI và dispatch",
+      "tasks": [
+        "P05-T13",
+        "P05-T15"
+      ],
+      "dependencies": [
+        "P05-CP02",
+        "P05-CP04",
+        "P05-CP05",
+        "P05-CP06",
+        "P05-CP07"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P05-T13",
+          "groups": [
+            "V-08",
+            "V-11"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T13; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P05-T15",
+          "groups": [
+            "V-09"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T15; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P05-CP09",
+      "phase": "P05",
+      "title": "Nghiệm thu M5",
+      "tasks": [
+        "P05-T16"
+      ],
+      "dependencies": [
+        "M4",
+        "P05-CP01",
+        "P05-CP02",
+        "P05-CP03",
+        "P05-CP04",
+        "P05-CP05",
+        "P05-CP06",
+        "P05-CP07",
+        "P05-CP08"
+      ],
+      "final": true,
+      "checks": [
+        {
+          "task": "P05-T16",
+          "groups": [
+            "V-07",
+            "V-10",
+            "V-11",
+            "V-00"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P05-T16; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P06-CP01",
+      "phase": "P06",
+      "title": "Scope, context và evidence",
+      "tasks": [
+        "P06-T01",
+        "P06-T02",
+        "P06-T03"
+      ],
+      "dependencies": [
+        "P03-CP05",
+        "P04-CP04",
+        "P05-CP06"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P06-T01",
+          "groups": [
+            "V-01"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T01; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P06-T02",
+          "groups": [
+            "V-01"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T02; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P06-T03",
+          "groups": [
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T03; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P06-CP02",
+      "phase": "P06",
+      "title": "Repair cục bộ và theo cảnh",
+      "tasks": [
+        "P06-T04",
+        "P06-T05"
+      ],
+      "dependencies": [
+        "P06-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P06-T04",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T04; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P06-T05",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T05; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P06-CP03",
+      "phase": "P06",
+      "title": "Dịch lại chương, số vòng và ngoại lệ",
+      "tasks": [
+        "P06-T06",
+        "P06-T07",
+        "P06-T08"
+      ],
+      "dependencies": [
+        "P06-CP01",
+        "P06-CP02"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P06-T06",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T06; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P06-T07",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T07; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P06-T08",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T08; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P06-CP04",
+      "phase": "P06",
+      "title": "Research, cache và nguồn chứng cứ",
+      "tasks": [
+        "P06-T09",
+        "P06-T10",
+        "P06-T11"
+      ],
+      "dependencies": [
+        "P06-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P06-T09",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T09; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P06-T10",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T10; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P06-T11",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T11; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P06-CP05",
+      "phase": "P06",
+      "title": "Propagation và resume",
+      "tasks": [
+        "P06-T12"
+      ],
+      "dependencies": [
+        "P03-CP05",
+        "P06-CP01",
+        "P06-CP02",
+        "P06-CP03",
+        "P06-CP04"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P06-T12",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T12; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P06-CP06",
+      "phase": "P06",
+      "title": "Giao diện Dịch và Review",
+      "tasks": [
+        "P06-T13",
+        "P06-T14"
+      ],
+      "dependencies": [
+        "P02-CP06",
+        "P04-CP06",
+        "P06-CP01",
+        "P06-CP04",
+        "P06-CP05"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P06-T13",
+          "groups": [
+            "V-06"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T13; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P06-T14",
+          "groups": [
+            "V-06"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T14; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P06-CP07",
+      "phase": "P06",
+      "title": "Giao diện Skills và approval",
+      "tasks": [
+        "P06-T15"
+      ],
+      "dependencies": [
+        "P03-CP03",
+        "P03-CP05",
+        "P06-CP05"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P06-T15",
+          "groups": [
+            "V-06"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T15; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P06-CP08",
+      "phase": "P06",
+      "title": "Nghiệm thu M6",
+      "tasks": [
+        "P06-T16"
+      ],
+      "dependencies": [
+        "M5",
+        "P06-CP01",
+        "P06-CP02",
+        "P06-CP03",
+        "P06-CP04",
+        "P06-CP05",
+        "P06-CP06",
+        "P06-CP07"
+      ],
+      "final": true,
+      "checks": [
+        {
+          "task": "P06-T16",
+          "groups": [
+            "V-07",
+            "V-00"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P06-T16; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P07-CP01",
+      "phase": "P07",
+      "title": "Kiểm và ghim ảnh",
+      "tasks": [
+        "P07-T02",
+        "P07-T03"
+      ],
+      "dependencies": [
+        "P02-CP01",
+        "P02-CP05"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P07-T02",
+          "groups": [
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T02; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P07-T03",
+          "groups": [
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T03; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P07-CP02",
+      "phase": "P07",
+      "title": "Readiness, bundle và render",
+      "tasks": [
+        "P07-T01",
+        "P07-T04",
+        "P07-T05"
+      ],
+      "dependencies": [
+        "P02-CP05",
+        "P03-CP01",
+        "P04-CP04",
+        "P06-CP03",
+        "P06-CP05",
+        "P07-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P07-T01",
+          "groups": [
+            "V-01"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T01; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P07-T04",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T04; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P07-T05",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T05; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P07-CP03",
+      "phase": "P07",
+      "title": "Dựng và kiểm EPUB",
+      "tasks": [
+        "P07-T06",
+        "P07-T07"
+      ],
+      "dependencies": [
+        "P07-CP02"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P07-T06",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T06; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P07-T07",
+          "groups": [
+            "V-05",
+            "V-06"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T07; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P07-CP04",
+      "phase": "P07",
+      "title": "Reserve, publish và recovery",
+      "tasks": [
+        "P07-T08",
+        "P07-T09"
+      ],
+      "dependencies": [
+        "P07-CP02",
+        "P07-CP03"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P07-T08",
+          "groups": [
+            "V-07"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T08; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P07-T09",
+          "groups": [
+            "V-07"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T09; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P07-CP05",
+      "phase": "P07",
+      "title": "Preview server và viewer",
+      "tasks": [
+        "P07-T10",
+        "P07-T11"
+      ],
+      "dependencies": [
+        "P07-CP02"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P07-T10",
+          "groups": [
+            "V-08"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T10; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P07-T11",
+          "groups": [
+            "V-08"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T11; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P07-CP06",
+      "phase": "P07",
+      "title": "Giao diện ảnh và Preview",
+      "tasks": [
+        "P07-T12",
+        "P07-T13"
+      ],
+      "dependencies": [
+        "P07-CP01",
+        "P07-CP02",
+        "P07-CP05"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P07-T12",
+          "groups": [
+            "V-09"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T12; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P07-T13",
+          "groups": [
+            "V-09"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T13; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P07-CP07",
+      "phase": "P07",
+      "title": "Xuất bản và lịch sử",
+      "tasks": [
+        "P07-T14"
+      ],
+      "dependencies": [
+        "P07-CP03",
+        "P07-CP04",
+        "P07-CP06"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P07-T14",
+          "groups": [
+            "V-09"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T14; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P07-CP08",
+      "phase": "P07",
+      "title": "Nghiệm thu M7",
+      "tasks": [
+        "P07-T15"
+      ],
+      "dependencies": [
+        "M6",
+        "P07-CP01",
+        "P07-CP02",
+        "P07-CP03",
+        "P07-CP04",
+        "P07-CP05",
+        "P07-CP06",
+        "P07-CP07"
+      ],
+      "final": true,
+      "checks": [
+        {
+          "task": "P07-T15",
+          "groups": [
+            "V-10",
+            "V-00"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P07-T15; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P08-CP01",
+      "phase": "P08",
+      "title": "Ma trận thiếu/đủ UI và CLI",
+      "tasks": [
+        "P08-T01"
+      ],
+      "dependencies": [
+        "P02-CP06",
+        "P03-CP06",
+        "P04-CP06",
+        "P05-CP08",
+        "P06-CP06",
+        "P06-CP07",
+        "P07-CP06",
+        "P07-CP07"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P08-T01",
+          "groups": [
+            "V-01"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P08-T01; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P08-CP02",
+      "phase": "P08",
+      "title": "Tổng quan, cấu hình và báo cáo",
+      "tasks": [
+        "P08-T02",
+        "P08-T03"
+      ],
+      "dependencies": [
+        "P05-CP07",
+        "P05-CP08",
+        "P06-CP05",
+        "P07-CP07",
+        "P08-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P08-T02",
+          "groups": [
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P08-T02; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P08-T03",
+          "groups": [
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P08-T03; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P08-CP03",
+      "phase": "P08",
+      "title": "Navigation theo dữ liệu",
+      "tasks": [
+        "P08-T04"
+      ],
+      "dependencies": [
+        "P03-CP02",
+        "P04-CP06",
+        "P05-CP08",
+        "P06-CP07",
+        "P07-CP07",
+        "P08-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P08-T04",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P08-T04; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P08-CP04",
+      "phase": "P08",
+      "title": "Bàn phím, bố cục và Unicode",
+      "tasks": [
+        "P08-T05",
+        "P08-T06"
+      ],
+      "dependencies": [
+        "P08-CP02",
+        "P08-CP03"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P08-T05",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P08-T05; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P08-T06",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P08-T06; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P08-CP05",
+      "phase": "P08",
+      "title": "CLI và non-interactive",
+      "tasks": [
+        "P08-T07",
+        "P08-T08"
+      ],
+      "dependencies": [
+        "P02-CP06",
+        "P03-CP06",
+        "P05-CP08",
+        "P06-CP06",
+        "P06-CP07",
+        "P07-CP07",
+        "P08-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P08-T07",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P08-T07; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P08-T08",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P08-T08; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P08-CP06",
+      "phase": "P08",
+      "title": "Parity hai giao diện",
+      "tasks": [
+        "P08-T09"
+      ],
+      "dependencies": [
+        "P08-CP02",
+        "P08-CP04",
+        "P08-CP05"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P08-T09",
+          "groups": [
+            "V-06"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P08-T09; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P08-CP07",
+      "phase": "P08",
+      "title": "Luồng xuyên màn",
+      "tasks": [
+        "P08-T10",
+        "P08-T11"
+      ],
+      "dependencies": [
+        "P08-CP03",
+        "P08-CP04",
+        "P08-CP05",
+        "P08-CP06"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P08-T10",
+          "groups": [
+            "V-07"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P08-T10; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P08-T11",
+          "groups": [
+            "V-07"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P08-T11; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P08-CP08",
+      "phase": "P08",
+      "title": "Nghiệm thu M8",
+      "tasks": [
+        "P08-T12"
+      ],
+      "dependencies": [
+        "M7",
+        "P08-CP01",
+        "P08-CP02",
+        "P08-CP03",
+        "P08-CP04",
+        "P08-CP05",
+        "P08-CP06",
+        "P08-CP07"
+      ],
+      "final": true,
+      "checks": [
+        {
+          "task": "P08-T12",
+          "groups": [
+            "V-08",
+            "V-00"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P08-T12; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P09-CP01",
+      "phase": "P09",
+      "title": "Ma trận nghiệm thu",
+      "tasks": [
+        "P09-T01"
+      ],
+      "dependencies": [
+        "M1"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P09-T01",
+          "groups": [
+            "V-01"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P09-T01; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P09-CP02",
+      "phase": "P09",
+      "title": "Corpus có người rà nghĩa",
+      "tasks": [
+        "P09-T02"
+      ],
+      "dependencies": [
+        "P09-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P09-T02",
+          "groups": [
+            "V-02"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P09-T02; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P09-CP03",
+      "phase": "P09",
+      "title": "Artifact để nghiệm thu",
+      "tasks": [
+        "P09-T10"
+      ],
+      "dependencies": [
+        "M8",
+        "P09-CP01"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P09-T10",
+          "groups": [
+            "V-10",
+            "V-00"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P09-T10; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P09-CP04",
+      "phase": "P09",
+      "title": "Crash và migration",
+      "tasks": [
+        "P09-T04",
+        "P09-T05"
+      ],
+      "dependencies": [
+        "P09-CP01",
+        "P09-CP03"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P09-T04",
+          "groups": [
+            "V-04"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P09-T04; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P09-T05",
+          "groups": [
+            "V-05"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P09-T05; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P09-CP05",
+      "phase": "P09",
+      "title": "Security và performance",
+      "tasks": [
+        "P09-T06",
+        "P09-T07"
+      ],
+      "dependencies": [
+        "P09-CP01",
+        "P09-CP03"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P09-T06",
+          "groups": [
+            "V-06"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P09-T06; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P09-T07",
+          "groups": [
+            "V-07"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P09-T07; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P09-CP06",
+      "phase": "P09",
+      "title": "Terminal và trình đọc thật",
+      "tasks": [
+        "P09-T08",
+        "P09-T09"
+      ],
+      "dependencies": [
+        "P09-CP01",
+        "P09-CP02",
+        "P09-CP03"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P09-T08",
+          "groups": [
+            "V-08"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P09-T08; phần V gắn với các ca đó."
+        },
+        {
+          "task": "P09-T09",
+          "groups": [
+            "V-09"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P09-T09; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P09-CP07",
+      "phase": "P09",
+      "title": "Đánh giá model được cấp ngân sách",
+      "tasks": [
+        "P09-T03"
+      ],
+      "dependencies": [
+        "P09-CP02",
+        "P09-CP03"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P09-T03",
+          "groups": [
+            "V-03"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P09-T03; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P09-CP08",
+      "phase": "P09",
+      "title": "README và parity matrix",
+      "tasks": [
+        "P09-T11"
+      ],
+      "dependencies": [
+        "P09-CP03",
+        "P09-CP04",
+        "P09-CP05",
+        "P09-CP06"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P09-T11",
+          "groups": [
+            "V-01",
+            "V-08"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P09-T11; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P09-CP09",
+      "phase": "P09",
+      "title": "Kết luận M9",
+      "tasks": [
+        "P09-T12"
+      ],
+      "dependencies": [
+        "M8",
+        "P09-CP01",
+        "P09-CP02",
+        "P09-CP03",
+        "P09-CP04",
+        "P09-CP05",
+        "P09-CP06",
+        "P09-CP07",
+        "P09-CP08"
+      ],
+      "final": true,
+      "checks": [
+        {
+          "task": "P09-T12",
+          "groups": [
+            "V-01",
+            "V-00"
+          ],
+          "scope": "Toàn bộ AC/TC bắt buộc của P09-T12; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    }
+  ]
+}
