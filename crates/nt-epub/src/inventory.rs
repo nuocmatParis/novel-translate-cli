@@ -3,11 +3,13 @@ use std::io::{Read, Seek};
 
 use roxmltree::{Document, Node};
 
-use crate::archive::{EntryId, EpubZip};
+use crate::archive::{EntryId, EpubZip, WorkingEntry};
 use crate::container::parse_container;
+use crate::effective_base::{BaseContext, BaseError, ReferenceKind};
 use crate::encryption::parse_encryption;
 use crate::navigation::{RawNavigationItem, parse_navigation};
 use crate::package::{ManifestItem, PackageData, SpineRef, parse_package, resolve_href};
+use crate::reference_index::native_space;
 use crate::xml::{XmlFailure, XmlFailureKind, node_position, with_xml_document};
 
 const CONTAINER_PATH: &str = "META-INF/container.xml";
@@ -86,6 +88,7 @@ pub enum DiagnosticCode {
     FontObfuscationDetected,
     ScriptedContentUnsupported,
     RemoteResourcesUnsupported,
+    BaseResolutionLimitExceeded,
     XmlByteLimitExceeded,
     XmlNodeLimitExceeded,
     XmlEncodingUnsupported,
@@ -300,6 +303,20 @@ impl Default for EpubInventory {
 
 impl EpubInventory {
     fn record(&mut self, diagnostic: Diagnostic, affects_coverage: bool) {
+        if native_space::active() {
+            let bytes = diagnostic
+                .resource_path
+                .as_ref()
+                .map_or(0, String::capacity)
+                + diagnostic
+                    .related_resource
+                    .as_ref()
+                    .map_or(0, String::capacity)
+                + 4 * size_of::<Diagnostic>();
+            if native_space::retain(bytes).is_err() {
+                return;
+            }
+        }
         if affects_coverage {
             self.coverage = InventoryCoverage::Partial;
         }
@@ -359,6 +376,7 @@ pub fn inspect<R: Read + Seek>(archive: &mut EpubZip<R>) -> EpubInventory {
             return inventory;
         }
     };
+    drop(container_bytes);
     if rootfiles.is_empty() {
         inventory.issue(
             DiagnosticCode::ContainerRootfileMissing,
@@ -449,6 +467,18 @@ pub fn inspect<R: Read + Seek>(archive: &mut EpubZip<R>) -> EpubInventory {
             return inventory;
         }
     };
+    drop(package_bytes);
+    if native_space::active() {
+        let copies = package
+            .resources
+            .len()
+            .saturating_mul(8)
+            .saturating_add(package.spine.len().saturating_mul(4))
+            .saturating_add(32);
+        if native_space::retain_path_copies(&package_path, copies).is_err() {
+            return inventory;
+        }
+    }
     inventory.package_version = package.version.clone();
     inventory.metadata = Metadata {
         values: package.metadata.clone(),
@@ -484,6 +514,9 @@ pub fn inspect<R: Read + Seek>(archive: &mut EpubZip<R>) -> EpubInventory {
     let mut id_to_index = HashMap::<String, usize>::new();
     let mut paths_to_indices = HashMap::<String, Vec<usize>>::new();
     for (index, source) in resources.iter_mut().enumerate() {
+        if native_space::denied() {
+            return inventory;
+        }
         if !source.id.is_empty() {
             id_to_index.entry(source.id.clone()).or_insert(index);
         }
@@ -629,6 +662,9 @@ pub fn inspect<R: Read + Seek>(archive: &mut EpubZip<R>) -> EpubInventory {
     }
     let mut navigation_anchor_cache = HashMap::new();
     for (resource_index, source) in &navigation_resources {
+        if native_space::denied() {
+            return inventory;
+        }
         let resource = &resources[*resource_index];
         let Some(path) = resource.path.as_deref() else {
             continue;
@@ -657,9 +693,34 @@ pub fn inspect<R: Read + Seek>(archive: &mut EpubZip<R>) -> EpubInventory {
         };
         match parse_navigation(&bytes, *source) {
             Ok(parsed) if parsed.has_toc && !parsed.items.is_empty() => {
+                let base = match BaseContext::for_html_base(path, parsed.html_base_href.as_deref())
+                {
+                    Ok(base) => base,
+                    Err(_) => {
+                        inventory.issue(
+                            DiagnosticCode::BaseResolutionLimitExceeded,
+                            DiagnosticSeverity::Incomplete,
+                            Some(path.to_owned()),
+                            None,
+                            None,
+                            None,
+                            true,
+                        );
+                        continue;
+                    }
+                };
+                if native_space::active()
+                    && native_space::retain_path_copies(
+                        path,
+                        3 * navigation_item_count(&parsed.items),
+                    )
+                    .is_err()
+                {
+                    return inventory;
+                }
                 let items = resolve_navigation_items(
                     &parsed.items,
-                    path,
+                    (path, &base),
                     archive,
                     &paths_to_indices,
                     &resources,
@@ -717,6 +778,13 @@ pub fn inspect<R: Read + Seek>(archive: &mut EpubZip<R>) -> EpubInventory {
     inventory.resources = public_resources(&resources);
     inspect_spine_markup(archive, &mut inventory);
     inventory
+}
+
+fn navigation_item_count(items: &[RawNavigationItem]) -> usize {
+    items
+        .iter()
+        .map(|item| 1 + navigation_item_count(&item.children))
+        .sum()
 }
 
 fn public_resources(resources: &[ManifestItem]) -> Vec<Resource> {
@@ -920,19 +988,20 @@ fn select_navigation_resources(package: &PackageData) -> Vec<(usize, NavigationS
 
 fn resolve_navigation_items<R: Read + Seek>(
     source_items: &[RawNavigationItem],
-    nav_path: &str,
+    nav_base: (&str, &BaseContext),
     archive: &mut EpubZip<R>,
     paths_to_indices: &HashMap<String, Vec<usize>>,
     resources: &[ManifestItem],
     anchor_cache: &mut HashMap<String, AnchorScan>,
     inventory: &mut EpubInventory,
 ) -> Vec<NavigationItem> {
+    let (nav_path, base) = nav_base;
     source_items
         .iter()
         .map(|item| {
             let target = item.target.as_ref().map(|raw| {
                 let (line, column) = (Some(raw.line), Some(raw.column));
-                let resolved = match resolve_href(nav_path, &raw.href) {
+                let resolved = match base.resolve_document_reference(&raw.href) {
                     Ok(target) if target.external => {
                         inventory.issue(
                             DiagnosticCode::ExternalReferenceNotRead,
@@ -949,9 +1018,13 @@ fn resolve_navigation_items<R: Read + Seek>(
                         };
                     }
                     Ok(target) => target,
-                    Err(_) => {
+                    Err(error) => {
                         inventory.issue(
-                            DiagnosticCode::ResourceHrefInvalid,
+                            if error.is_limit() {
+                                DiagnosticCode::BaseResolutionLimitExceeded
+                            } else {
+                                DiagnosticCode::ResourceHrefInvalid
+                            },
                             DiagnosticSeverity::Incomplete,
                             Some(nav_path.to_owned()),
                             line,
@@ -1077,7 +1150,7 @@ fn resolve_navigation_items<R: Read + Seek>(
                 target,
                 children: resolve_navigation_items(
                     &item.children,
-                    nav_path,
+                    (nav_path, base),
                     archive,
                     paths_to_indices,
                     resources,
@@ -1242,6 +1315,9 @@ fn inspect_encryption<R: Read + Seek>(
     };
     let mut seen = HashSet::new();
     for record in records {
+        if native_space::denied() {
+            return;
+        }
         let (path, line, column) = (
             ENCRYPTION_PATH.to_owned(),
             Some(record.line),
@@ -1384,7 +1460,7 @@ fn is_font_core_media_type(media_type: &str) -> bool {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct RawImageUse {
-    href: String,
+    resolved: Result<crate::package::ResolvedHref, BaseError>,
     line: u32,
     column: u32,
 }
@@ -1429,6 +1505,9 @@ fn inspect_spine_markup<R: Read + Seek>(archive: &mut EpubZip<R>, inventory: &mu
     let mut image_readability = HashMap::<EntryId, bool>::new();
 
     for (resource_index, id, media_type, path) in candidates {
+        if native_space::denied() {
+            return;
+        }
         let bytes = match read_entry(archive, &path) {
             Ok(Some(bytes)) => bytes,
             Ok(None) => {
@@ -1453,6 +1532,7 @@ fn inspect_spine_markup<R: Read + Seek>(archive: &mut EpubZip<R>, inventory: &mu
             super::xml::DEFAULT_XML_MAX_BYTES,
             super::xml::DEFAULT_XML_MAX_NODES,
             |document| {
+                let base = BaseContext::from_document(&path, document)?;
                 let root = document.root_element();
                 let is_svg = media_type == SVG_MEDIA_TYPE;
                 let expected_root = if is_svg {
@@ -1527,30 +1607,63 @@ fn inspect_spine_markup<R: Read + Seek>(archive: &mut EpubZip<R>, inventory: &mu
                                     && node.tag_name().namespace() == Some(SVG_NAMESPACE)))
                     })
                     .filter_map(|node| {
-                        let href = node
-                            .attribute("src")
-                            .or_else(|| node.attribute("href"))
-                            .or_else(|| {
-                                namespaced_attribute(node, "http://www.w3.org/1999/xlink", "href")
-                            })?;
+                        let href = if node.tag_name().namespace() == Some(SVG_NAMESPACE) {
+                            crate::effective_base::unqualified_attribute(node, "href").or_else(
+                                || {
+                                    namespaced_attribute(
+                                        node,
+                                        "http://www.w3.org/1999/xlink",
+                                        "href",
+                                    )
+                                },
+                            )
+                        } else {
+                            crate::effective_base::unqualified_attribute(node, "src")
+                        }?;
                         let (line, column) = node_position(node);
-                        Some(RawImageUse {
-                            href: href.to_owned(),
+                        let kind = if node.tag_name().namespace() == Some(SVG_NAMESPACE) {
+                            ReferenceKind::Svg
+                        } else {
+                            ReferenceKind::Html
+                        };
+                        Some((node, href, kind, line, column))
+                    })
+                    .map(|(node, href, kind, line, column)| {
+                        let resolved = base.resolve(node, href, kind);
+                        if let Err(error) = resolved
+                            && error.is_limit()
+                        {
+                            return Err(error);
+                        }
+                        Ok(RawImageUse {
+                            resolved,
                             line,
                             column,
                         })
                     })
-                    .collect();
-                MarkupScan {
+                    .collect::<Result<Vec<_>, BaseError>>()?;
+                Ok::<_, BaseError>(MarkupScan {
                     scripted,
                     expected_root,
                     has_readable_text,
                     image_uses,
-                }
+                })
             },
         );
         let scan = match scan {
-            Ok(scan) => scan,
+            Ok(Ok(scan)) => scan,
+            Ok(Err(_)) => {
+                inventory.issue(
+                    DiagnosticCode::BaseResolutionLimitExceeded,
+                    DiagnosticSeverity::Incomplete,
+                    Some(path.clone()),
+                    None,
+                    None,
+                    None,
+                    true,
+                );
+                continue;
+            }
             Err(failure) => {
                 xml_failure(inventory, &path, failure, DiagnosticCode::XmlMalformed);
                 continue;
@@ -1603,7 +1716,7 @@ fn inspect_spine_markup<R: Read + Seek>(archive: &mut EpubZip<R>, inventory: &mu
                 line: raw.line,
                 column: raw.column,
             };
-            match resolve_href(&path, &raw.href) {
+            match raw.resolved {
                 Ok(target) if target.external => {
                     image_use.external = true;
                     inventory.issue(
@@ -1642,7 +1755,7 @@ fn inspect_spine_markup<R: Read + Seek>(archive: &mut EpubZip<R>, inventory: &mu
                             if let std::collections::hash_map::Entry::Vacant(entry) =
                                 image_readability.entry(entry_id)
                             {
-                                let readable = archive.read_entry(entry_id).is_ok();
+                                let readable = archive.read_working_entry(entry_id).is_ok();
                                 entry.insert(readable);
                                 if !readable {
                                     inventory.issue(
@@ -1703,6 +1816,22 @@ fn inspect_spine_markup<R: Read + Seek>(archive: &mut EpubZip<R>, inventory: &mu
             uses.push(image_use);
         }
 
+        if native_space::active() {
+            let copies = 1 + inventory
+                .spine
+                .iter()
+                .filter(|item| item.resource_index == Some(resource_index))
+                .count();
+            let per_copy = uses.iter().fold(
+                uses.len().saturating_mul(size_of::<ImageUse>()),
+                |bytes, image| {
+                    bytes.saturating_add(image.resource_path.as_ref().map_or(0, String::len))
+                },
+            );
+            if native_space::retain(per_copy.saturating_mul(copies)).is_err() {
+                return;
+            }
+        }
         if let Some(resource) = inventory.resources.get_mut(resource_index) {
             resource.image_uses = uses.clone();
         }
@@ -1883,13 +2012,19 @@ fn namespaced_attribute<'a>(node: Node<'a, 'a>, namespace: &str, name: &str) -> 
         .map(|attribute| attribute.value())
 }
 
-fn read_entry<R: Read + Seek>(archive: &mut EpubZip<R>, path: &str) -> Result<Option<Vec<u8>>, ()> {
+fn read_entry<R: Read + Seek>(
+    archive: &mut EpubZip<R>,
+    path: &str,
+) -> Result<Option<WorkingEntry>, ()> {
     let entry = archive.entry_by_path(path).map_err(|_| ())?;
     let Some(entry) = entry else { return Ok(None) };
     if entry.is_directory() {
         return Ok(None);
     }
-    archive.read_entry(entry.id()).map(Some).map_err(|_| ())
+    archive
+        .read_working_entry(entry.id())
+        .map(Some)
+        .map_err(|_| ())
 }
 
 fn entry_exists<R: Read + Seek>(archive: &EpubZip<R>, path: &str) -> Result<bool, ()> {

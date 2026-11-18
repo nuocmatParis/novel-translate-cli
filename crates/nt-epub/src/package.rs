@@ -5,6 +5,7 @@ use roxmltree::{Document, Node};
 use crate::inventory::{
     Diagnostic, DiagnosticCode, DiagnosticSeverity, MetadataValue, ResourceEncryption,
 };
+use crate::reference_index::native_space;
 use crate::xml::{XmlFailure, node_position, with_xml_document};
 
 const OPF_NAMESPACE: &str = "http://www.idpf.org/2007/opf";
@@ -69,8 +70,19 @@ pub(crate) fn parse_package(bytes: &[u8], path: &str) -> Result<PackageData, Xml
         bytes,
         super::xml::DEFAULT_XML_MAX_BYTES,
         super::xml::DEFAULT_XML_MAX_NODES,
-        |document| extract_package(document, path),
-    )
+        |document| {
+            if native_space::active() {
+                let copies = document
+                    .descendants()
+                    .count()
+                    .saturating_mul(5)
+                    .saturating_add(16);
+                native_space::retain_path_copies(path, copies)
+                    .map_err(|_| XmlFailure::new(crate::xml::XmlFailureKind::ByteLimit, None))?;
+            }
+            Ok(extract_package(document, path))
+        },
+    )?
 }
 
 fn extract_package(document: &Document<'_>, path: &str) -> PackageData {
@@ -308,6 +320,11 @@ pub(crate) fn resolve_href(base_file: &str, href: &str) -> Result<ResolvedHref, 
             external: true,
         });
     }
+    let _reservation = if native_space::active() {
+        Some(native_space::uri(base_file, href).map_err(|_| HrefError::InvalidArchivePath)?)
+    } else {
+        None
+    };
     let (raw_path, raw_fragment) = href.split_once('#').unwrap_or((href, ""));
     if raw_path.contains('?') {
         return Err(HrefError::QueryNotSupported);

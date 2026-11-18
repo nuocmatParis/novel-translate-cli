@@ -1,5 +1,6 @@
 use roxmltree::{Document, Node, TextPos};
 
+use crate::effective_base::{check_reference_bytes, first_html_base};
 use crate::inventory::NavigationSource;
 use crate::xml::{XmlFailure, XmlFailureKind, node_position, with_xml_document};
 
@@ -27,6 +28,7 @@ pub(crate) struct RawNavigationItem {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ParsedNavigation {
     pub source: NavigationSource,
+    pub html_base_href: Option<String>,
     pub items: Vec<RawNavigationItem>,
     pub has_toc: bool,
 }
@@ -50,6 +52,12 @@ fn parse_epub3(document: &Document<'_>) -> Result<ParsedNavigation, XmlFailure> 
     if !is_named_in_namespace(document.root_element(), XHTML_NAMESPACE, "html") {
         return Ok(empty_navigation(NavigationSource::Epub3Nav));
     }
+    let html_base_href = first_html_base(document);
+    if let Some(href) = html_base_href {
+        check_reference_bytes(href)
+            .map_err(|_| XmlFailure::new(XmlFailureKind::ByteLimit, None))?;
+    }
+    let html_base_href = html_base_href.map(str::to_owned);
     let nav = document
         .descendants()
         .filter(|node| is_named_in_namespace(*node, XHTML_NAMESPACE, "nav"))
@@ -60,6 +68,7 @@ fn parse_epub3(document: &Document<'_>) -> Result<ParsedNavigation, XmlFailure> 
     let Some(nav) = nav else {
         return Ok(ParsedNavigation {
             source: NavigationSource::Epub3Nav,
+            html_base_href,
             items: Vec::new(),
             has_toc: false,
         });
@@ -75,6 +84,7 @@ fn parse_epub3(document: &Document<'_>) -> Result<ParsedNavigation, XmlFailure> 
     };
     Ok(ParsedNavigation {
         source: NavigationSource::Epub3Nav,
+        html_base_href,
         items,
         has_toc: true,
     })
@@ -148,6 +158,7 @@ fn parse_ncx(document: &Document<'_>) -> Result<ParsedNavigation, XmlFailure> {
     let Some(nav_map) = nav_map else {
         return Ok(ParsedNavigation {
             source: NavigationSource::Epub2Ncx,
+            html_base_href: None,
             items: Vec::new(),
             has_toc: false,
         });
@@ -160,6 +171,7 @@ fn parse_ncx(document: &Document<'_>) -> Result<ParsedNavigation, XmlFailure> {
         .collect();
     Ok(ParsedNavigation {
         source: NavigationSource::Epub2Ncx,
+        html_base_href: None,
         items,
         has_toc: true,
     })
@@ -195,6 +207,7 @@ fn navigation_depth_failure(node: Node<'_, '_>) -> XmlFailure {
 fn empty_navigation(source: NavigationSource) -> ParsedNavigation {
     ParsedNavigation {
         source,
+        html_base_href: None,
         items: Vec::new(),
         has_toc: false,
     }
