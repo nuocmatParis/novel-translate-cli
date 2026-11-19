@@ -27,6 +27,8 @@ const TRACING_SUBSCRIBER_PACKAGE_ID: &str =
     "registry+https://github.com/rust-lang/crates.io-index#tracing-subscriber@0.3.23";
 const CROSSTERM_WINAPI_PACKAGE_ID: &str =
     "registry+https://github.com/rust-lang/crates.io-index#crossterm_winapi@0.9.1";
+const WINAPI_PACKAGE_ID: &str =
+    "registry+https://github.com/rust-lang/crates.io-index#winapi@0.3.9";
 
 #[derive(Debug, Deserialize)]
 struct CargoMetadata {
@@ -230,16 +232,20 @@ fn allowed_external_dependency(
                 && target == Some("cfg(windows)")
                 && kind == DependencyKind::Normal)
         }
-        "novel-translate" => matches!(
-            dependency,
-            "anyhow"
-                | "clap"
-                | "serde"
-                | "serde_json"
-                | "thiserror"
-                | "tracing"
-                | "tracing-subscriber"
-        ),
+        "novel-translate" => {
+            matches!(
+                dependency,
+                "anyhow"
+                    | "clap"
+                    | "serde"
+                    | "serde_json"
+                    | "thiserror"
+                    | "tracing"
+                    | "tracing-subscriber"
+            ) || (dependency == "winapi"
+                && target == Some("cfg(windows)")
+                && kind == DependencyKind::Normal)
+        }
         _ => false,
     }
 }
@@ -491,6 +497,7 @@ fn analyze_metadata_with_packages(
                 for resolved_package in resolved_packages {
                     if resolved_package.name != edge.target
                         || resolved_package.source.as_deref() != Some(CRATES_IO)
+                        || (edge.target == "winapi" && resolved_package.id != WINAPI_PACKAGE_ID)
                     {
                         report.violations.push(format!(
                             "resolved external package identity/source is not approved: owner=`{}`, package=`{}`, resolved_name=`{}`, resolved_source={:?}, resolved_path=`{}`; {}",

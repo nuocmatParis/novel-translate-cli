@@ -1,13 +1,13 @@
-use crate::WorkspaceCommands;
 use crate::input::{UiAction, dispatch_event, is_shutdown_request};
-use crate::screens::{WorkspaceForm, WorkspaceFormSnapshot};
-use crate::state::AppState;
+use crate::screens::{ImportScreen, WorkspaceForm, WorkspaceFormSnapshot};
+use crate::state::{AppState, FocusRegion};
 #[cfg(windows)]
 use crate::windows_input::WindowsInputReader;
+use crate::{BookWorkspace, VolumeCommands, WorkspaceCommands};
 use crate::{TuiError, TuiErrorKind};
 #[cfg(not(windows))]
 use crossterm::event;
-use crossterm::event::Event;
+use crossterm::event::{Event, MouseButton, MouseEventKind};
 use crossterm::terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
@@ -40,6 +40,15 @@ trait TerminalDriver {
     ) -> io::Result<()> {
         self.draw_shell(area, state)
     }
+    fn draw_shell_with_volumes(
+        &mut self,
+        area: Rect,
+        state: &AppState,
+        workspace: &WorkspaceFormSnapshot,
+        _volumes: &str,
+    ) -> io::Result<()> {
+        self.draw_shell_with_workspace(area, state, workspace)
+    }
     fn read_event(&mut self) -> io::Result<Event>;
     fn poll_event(&mut self, _timeout: Duration) -> io::Result<Option<Event>> {
         self.read_event().map(Some)
@@ -49,36 +58,84 @@ trait TerminalDriver {
 /// Runs the small lifecycle shell until the user requests shutdown.
 /// The main shell presentation is supplied by the following TUI tasks.
 pub fn run_shell() -> Result<(), TuiError> {
-    let driver = CrosstermTerminal::new().map_err(|_| TuiError::new(TuiErrorKind::EventRead))?;
+    let driver =
+        CrosstermTerminal::new(false).map_err(|_| TuiError::new(TuiErrorKind::EventRead))?;
     run_shell_with_driver(driver)
 }
 
 pub fn run_shell_with_workspace(commands: Arc<dyn WorkspaceCommands>) -> Result<(), TuiError> {
-    let driver = CrosstermTerminal::new().map_err(|_| TuiError::new(TuiErrorKind::EventRead))?;
-    run_shell_with_driver_and_workspace(driver, Some(commands))
+    let driver =
+        CrosstermTerminal::new(false).map_err(|_| TuiError::new(TuiErrorKind::EventRead))?;
+    run_shell_with_driver_and_workspace(driver, Some(commands), None)
+}
+
+pub fn run_shell_with_volumes(
+    commands: Arc<dyn WorkspaceCommands>,
+    volumes: Arc<dyn VolumeCommands>,
+) -> Result<(), TuiError> {
+    let driver =
+        CrosstermTerminal::new(true).map_err(|_| TuiError::new(TuiErrorKind::EventRead))?;
+    run_shell_with_driver_and_workspace(driver, Some(commands), Some(volumes))
 }
 
 fn run_shell_with_driver<D: TerminalDriver>(driver: D) -> Result<(), TuiError> {
-    run_shell_with_driver_and_workspace(driver, None)
+    run_shell_with_driver_and_workspace(driver, None, None)
 }
 
 fn run_shell_with_driver_and_workspace<D: TerminalDriver>(
     driver: D,
     commands: Option<Arc<dyn WorkspaceCommands>>,
+    volumes: Option<Arc<dyn VolumeCommands>>,
 ) -> Result<(), TuiError> {
     run_with_driver(driver, |driver| {
         let mut state = AppState::default();
         let mut workspace_form = WorkspaceForm::new(commands);
+        let mut imports = ImportScreen::new(volumes);
         let mut rendered_area = None;
         let mut redraw_needed = true;
         loop {
             let workspace_changed = workspace_form.poll_result();
+            if workspace_changed && let Some((epoch, path, metadata)) = workspace_form.opened() {
+                imports.open_workspace(
+                    epoch,
+                    BookWorkspace {
+                        path: path.to_path_buf(),
+                        series: metadata.series.id.clone(),
+                        generation: metadata.current_generation.clone(),
+                    },
+                );
+            }
+            let (import_state_changed, imported) = imports.poll();
+            let overview_form_active = state.current_screen()
+                == crate::navigation::Screen::Overview
+                && workspace_form.is_active_form();
+            if imported && imports.available(state.current_screen()) && !overview_form_active {
+                state.navigate_to(crate::navigation::Screen::VolumesAndChapters);
+                state.set_workspace_controls(true);
+                state.focus_workspace();
+                state.set_scroll_offset(0);
+                state.set_scroll_anchor_byte(0);
+            }
+            state.set_workspace_controls(
+                imports.available(state.current_screen()) && !overview_form_active,
+            );
+            imports.set_screen(state.current_screen());
+            let volume_body = state
+                .has_workspace_controls()
+                .then(|| imports.body(state.focus_region() == FocusRegion::Workspace));
             let area = driver.terminal_area().map_err(|_| TuiErrorKind::Render)?;
-            if redraw_needed || rendered_area != Some(area) || workspace_changed {
-                refresh_scroll_layout(&mut state, area);
-                driver
-                    .draw_shell_with_workspace(area, &state, &workspace_form.snapshot())
-                    .map_err(|_| TuiErrorKind::Render)?;
+            if redraw_needed
+                || rendered_area != Some(area)
+                || workspace_changed
+                || import_state_changed
+            {
+                refresh_scroll_layout(&mut state, area, volume_body.as_deref());
+                let workspace = workspace_form.snapshot();
+                let result = match &volume_body {
+                    Some(body) => driver.draw_shell_with_volumes(area, &state, &workspace, body),
+                    None => driver.draw_shell_with_workspace(area, &state, &workspace),
+                };
+                result.map_err(|_| TuiErrorKind::Render)?;
                 rendered_area = Some(area);
                 redraw_needed = false;
             }
@@ -97,39 +154,82 @@ fn run_shell_with_driver_and_workspace<D: TerminalDriver>(
                 return Ok(());
             }
             let area = driver.terminal_area().map_err(|_| TuiErrorKind::Render)?;
-            refresh_scroll_layout(&mut state, area);
+            refresh_scroll_layout(&mut state, area, volume_body.as_deref());
             if controls_hidden_in_last_frame && state.terminal_size_supported() {
+                redraw_needed = true;
+                continue;
+            }
+            if let Event::Mouse(mouse) = &event
+                && mouse.kind == MouseEventKind::Down(MouseButton::Left)
+                && state.has_workspace_controls()
+                && crate::rendering::picker_hit(area, &state, mouse.column, mouse.row)
+            {
+                state.focus_workspace();
+                imports.open_picker();
                 redraw_needed = true;
                 continue;
             }
             let screen_before_dispatch = state.current_screen();
             let scroll_offset_before_dispatch = state.scroll_offset();
-            let focused_control = (state.current_screen() == crate::navigation::Screen::Overview)
-                .then_some(&mut workspace_form as &mut dyn crate::input::EventLayer);
-            match dispatch_event(&mut state, &event, None, focused_control) {
+            let focus_before_dispatch = state.focus_region();
+            let editing_before_dispatch = imports.editing();
+            let overview = screen_before_dispatch == crate::navigation::Screen::Overview;
+            let mut controls = WorkspaceControls {
+                form: overview.then_some(&mut workspace_form),
+                imports: (state.focus_region() == FocusRegion::Workspace).then_some(&mut imports),
+            };
+            match dispatch_event(&mut state, &event, None, Some(&mut controls)) {
                 UiAction::Shutdown => return Ok(()),
                 UiAction::None | UiAction::RouteOpened(_) => {}
             }
-            refresh_scroll_layout(&mut state, area);
+            if state.focus_region() == FocusRegion::Workspace
+                && focus_before_dispatch != FocusRegion::Workspace
+            {
+                imports.focus_picker();
+                state.set_scroll_offset(0);
+                state.set_scroll_anchor_byte(0);
+            }
+            if imports.editing() != editing_before_dispatch {
+                state.set_scroll_offset(0);
+                state.set_scroll_anchor_byte(0);
+            }
+            refresh_scroll_layout(&mut state, area, volume_body.as_deref());
             if state.current_screen() != screen_before_dispatch {
-                let offset = crate::rendering::scroll_offset_for_anchor(area, &state);
+                let offset = crate::rendering::scroll_offset_for_anchor(area, &state, None);
                 state.set_scroll_offset(offset);
             } else if state.scroll_offset() != scroll_offset_before_dispatch {
-                crate::rendering::capture_scroll_anchor(&mut state, area);
+                crate::rendering::capture_scroll_anchor(&mut state, area, volume_body.as_deref());
             }
             redraw_needed = true;
         }
     })
 }
 
-fn refresh_scroll_layout(state: &mut AppState, area: Rect) {
+struct WorkspaceControls<'a> {
+    form: Option<&'a mut WorkspaceForm>,
+    imports: Option<&'a mut ImportScreen>,
+}
+
+impl crate::input::EventLayer for WorkspaceControls<'_> {
+    fn handle_event(&mut self, event: &Event) -> bool {
+        self.form
+            .as_mut()
+            .is_some_and(|form| form.handle_event(event))
+            || self
+                .imports
+                .as_mut()
+                .is_some_and(|imports| imports.handle_event(event))
+    }
+}
+
+fn refresh_scroll_layout(state: &mut AppState, area: Rect, volumes: Option<&str>) {
     let (previous_width, previous_height) = state.terminal_size();
     let resized = (previous_width, previous_height) != (area.width, area.height);
     state.set_terminal_size(area.width, area.height);
-    let (page_lines, scroll_limit) = crate::rendering::scroll_metrics(area, state);
+    let (page_lines, scroll_limit) = crate::rendering::scroll_metrics(area, state, volumes);
     state.set_scroll_metrics(page_lines, scroll_limit);
     if resized && state.terminal_size_supported() {
-        let offset = crate::rendering::scroll_offset_for_anchor(area, state);
+        let offset = crate::rendering::scroll_offset_for_anchor(area, state, volumes);
         state.set_scroll_offset(offset);
     }
 }
@@ -255,14 +355,17 @@ fn attempt_cleanup(action: impl FnOnce() -> io::Result<()>) -> bool {
 struct CrosstermTerminal {
     #[cfg(windows)]
     windows_input: WindowsInputReader,
+    #[cfg(windows)]
+    capture_volume_clicks: bool,
 }
 
 impl CrosstermTerminal {
-    fn new() -> io::Result<Self> {
+    fn new(_capture_volume_clicks: bool) -> io::Result<Self> {
         #[cfg(windows)]
         {
             Ok(Self {
                 windows_input: WindowsInputReader::new()?,
+                capture_volume_clicks: _capture_volume_clicks,
             })
         }
         #[cfg(not(windows))]
@@ -279,7 +382,13 @@ impl TerminalDriver for CrosstermTerminal {
     }
 
     fn enable_raw_mode(&mut self) -> io::Result<()> {
-        terminal::enable_raw_mode()
+        terminal::enable_raw_mode()?;
+        #[cfg(windows)]
+        if self.capture_volume_clicks {
+            // Crossterm restores the original input mode at terminal cleanup.
+            let _ = self.windows_input.enable_mouse_input();
+        }
+        Ok(())
     }
 
     fn enter_alternate_screen(&mut self) -> io::Result<()> {
@@ -319,6 +428,18 @@ impl TerminalDriver for CrosstermTerminal {
     ) -> io::Result<()> {
         let mut stdout = io::stdout();
         draw_shell_to_with_workspace(&mut stdout, area, state, workspace)
+    }
+
+    fn draw_shell_with_volumes(
+        &mut self,
+        area: Rect,
+        state: &AppState,
+        workspace: &WorkspaceFormSnapshot,
+        volumes: &str,
+    ) -> io::Result<()> {
+        let mut buffer = Buffer::empty(area);
+        crate::rendering::render_with_volumes(&mut buffer, area, state, workspace, volumes);
+        draw_buffer(&mut io::stdout(), area, &buffer)
     }
 
     fn read_event(&mut self) -> io::Result<Event> {

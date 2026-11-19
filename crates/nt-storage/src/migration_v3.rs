@@ -164,7 +164,7 @@ fn migrate_with_hook(
     let version: i64 = connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(map_sqlite_error)?;
-    if version == 3 {
+    if matches!(version, 3 | 4) {
         return validate_database(connection).map(|_| ());
     }
     if version != 2 {
@@ -190,6 +190,9 @@ fn migrate_with_hook(
         .map_err(map_sqlite_error)?;
         configure_connection(&backup)?;
         let backup_metadata = validate_database(&backup)?;
+        if matches!(backup_metadata.schema_version, 3 | 4) {
+            return Err(WorkspaceError::Busy);
+        }
         ensure_same_workspace(&before, &backup_metadata)?;
         if backup_metadata.schema_version != 2 {
             return Err(WorkspaceError::CorruptWorkspace);
@@ -244,7 +247,7 @@ fn migrate_with_hook(
     let version: i64 = transaction
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(map_sqlite_error)?;
-    if version == 3 {
+    if matches!(version, 3 | 4) {
         transaction.commit().map_err(map_sqlite_error)?;
         return validate_database(connection).map(|_| ());
     }
@@ -339,7 +342,7 @@ fn backup_referenced_objects(
     Ok(pinned)
 }
 
-fn hash_file(path: &Path) -> Result<(String, u64), WorkspaceError> {
+pub(super) fn hash_file(path: &Path) -> Result<(String, u64), WorkspaceError> {
     let mut file = File::open(path).map_err(map_io_error)?;
     let mut hash = Sha256::new();
     let mut total = 0_u64;
@@ -443,7 +446,8 @@ mod tests {
         let connection = Connection::open(root.join("series.sqlite3")).unwrap();
         connection
             .execute_batch(
-                "DROP TABLE cp05_resource_refs;
+                "DROP TABLE cp06_volume_registrations;
+             DROP TABLE cp05_resource_refs;
              DROP TABLE cp05_volume_versions;
              DROP TABLE cp05_series_defaults;
              PRAGMA user_version=2;
@@ -544,6 +548,6 @@ mod tests {
         assert_v2(&connection);
         drop(connection);
         let reopened = SqliteWorkspaceRepository.open(&root).unwrap();
-        assert_eq!(reopened.schema_version, 3);
+        assert_eq!(reopened.schema_version, 4);
     }
 }

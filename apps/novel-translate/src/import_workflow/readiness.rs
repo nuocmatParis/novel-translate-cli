@@ -27,42 +27,53 @@ pub enum ReviewIssue {
 
 impl ImportReadiness {
     pub(super) fn from_record(record: &VolumeRecord) -> Self {
-        use ReviewIssue::*;
-
         let mut issues = Vec::new();
+        Self::visit(record, |issue| issues.push(issue));
+        if issues.is_empty() {
+            Self::Ready
+        } else {
+            Self::NeedsReview { issues }
+        }
+    }
+
+    pub(super) fn visit(record: &VolumeRecord, mut visit: impl FnMut(ReviewIssue)) {
+        use ReviewIssue::*;
         for (index, issue) in record.diagnostics.source.iter().enumerate() {
             match issue {
                 SourceIssue::InventoryPartial {} => {}
                 SourceIssue::Inventory { value } if value.severity == InventorySeverity::Info => {}
-                _ => issues.push(Source(index)),
+                _ => visit(Source(index)),
             }
         }
-        issues.extend((0..record.diagnostics.navigation.len()).map(Navigation));
-        issues
-            .extend((0..record.diagnostics.unresolved_resource_uses.len()).map(ResourceReference));
+        (0..record.diagnostics.navigation.len())
+            .map(Navigation)
+            .for_each(&mut visit);
+        (0..record.diagnostics.unresolved_resource_uses.len())
+            .map(ResourceReference)
+            .for_each(&mut visit);
         for (index, issue) in record.diagnostics.mapping.iter().enumerate() {
             if !matches!(issue, StoredMapIssue::InputDiagnostic { .. }) {
-                issues.push(Mapping(index));
+                visit(Mapping(index));
             }
         }
         for (index, region) in record.mapping.volume.main_flow.iter().enumerate() {
             if matches!(region, StoredMainFlow::Unclassified { .. }) {
-                issues.push(UnclassifiedBoundary(index));
+                visit(UnclassifiedBoundary(index));
             }
         }
         for (index, item) in record.scope.records.iter().enumerate() {
             match item {
                 ScopeRecord::Content(content) => {
                     if content.handling == ScopeHandling::NeedsClassification {
-                        issues.push(Classification(index));
+                        visit(Classification(index));
                     }
                     if matches!(content.decision, ScopeDecisionMatch::NeedsComparison { .. }) {
-                        issues.push(DecisionComparison(index));
+                        visit(DecisionComparison(index));
                     }
                 }
                 ScopeRecord::Related(text) => {
                     if text.handling == ScopeHandling::NeedsClassification {
-                        issues.push(Classification(index));
+                        visit(Classification(index));
                     }
                     if text.handling == ScopeHandling::NeedsRelationship
                         || text
@@ -71,32 +82,27 @@ impl ImportReadiness {
                             .iter()
                             .any(|relation| !matches!(relation, ScopeTarget::Resolved { .. }))
                     {
-                        issues.push(Relationship(index));
+                        visit(Relationship(index));
                     }
                 }
                 ScopeRecord::NoteReference(link)
                     if !matches!(link.target, ScopeTarget::Resolved { .. }) =>
                 {
-                    issues.push(Relationship(index));
+                    visit(Relationship(index));
                 }
                 ScopeRecord::NoteReference(_) => {}
             }
         }
         for (index, note) in record.scope.notes.iter().enumerate() {
             if note.content.handling == ScopeHandling::NeedsClassification {
-                issues.push(NoteClassification(index));
+                visit(NoteClassification(index));
             }
             if matches!(
                 note.content.decision,
                 ScopeDecisionMatch::NeedsComparison { .. }
             ) {
-                issues.push(NoteDecisionComparison(index));
+                visit(NoteDecisionComparison(index));
             }
-        }
-        if issues.is_empty() {
-            Self::Ready
-        } else {
-            Self::NeedsReview { issues }
         }
     }
 }

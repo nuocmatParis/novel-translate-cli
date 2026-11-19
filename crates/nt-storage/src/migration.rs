@@ -3,6 +3,10 @@ mod migration_v3;
 
 pub(super) use migration_v3::{apply_m003, migrate_v2_to_v3, validate_m003};
 
+#[path = "migration_v4.rs"]
+mod migration_v4;
+pub(super) use migration_v4::{apply_m004, migrate_v3_to_v4, validate_m004};
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -81,7 +85,7 @@ fn migrate_v1_to_v2_with_failpoint(
     let current_version: i64 = connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(map_sqlite_error)?;
-    if current_version == i64::from(M002_VERSION) || current_version == i64::from(SCHEMA_VERSION) {
+    if (i64::from(M002_VERSION)..=i64::from(SCHEMA_VERSION)).contains(&current_version) {
         return Ok(());
     }
     if current_version != 1 {
@@ -143,9 +147,7 @@ fn migrate_v1_to_v2_with_failpoint(
     let version_inside_transaction: i64 = transaction
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(map_sqlite_error)?;
-    if version_inside_transaction == i64::from(M002_VERSION)
-        || version_inside_transaction == i64::from(SCHEMA_VERSION)
-    {
+    if (i64::from(M002_VERSION)..=i64::from(SCHEMA_VERSION)).contains(&version_inside_transaction) {
         transaction.commit().map_err(map_sqlite_error)?;
         return Ok(());
     }

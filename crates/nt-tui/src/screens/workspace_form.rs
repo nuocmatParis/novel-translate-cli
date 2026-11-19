@@ -36,6 +36,7 @@ enum FormStatus {
 pub(crate) struct WorkspaceForm {
     commands: Option<Arc<dyn WorkspaceCommands>>,
     current_workspace: Option<WorkspaceMetadata>,
+    opened: Option<(u64, PathBuf)>,
     status: FormStatus,
     path: String,
     next_request_id: u64,
@@ -56,6 +57,7 @@ impl WorkspaceForm {
         Self {
             commands,
             current_workspace: None,
+            opened: None,
             status: FormStatus::Idle,
             path: String::new(),
             next_request_id: 1,
@@ -79,6 +81,7 @@ impl WorkspaceForm {
                     self.status = match result {
                         Ok(metadata) => {
                             self.current_workspace = Some(metadata.clone());
+                            self.opened = Some((request_id, PathBuf::from(&self.path)));
                             FormStatus::Complete {
                                 operation,
                                 metadata,
@@ -99,6 +102,18 @@ impl WorkspaceForm {
             current_workspace: self.current_workspace.clone(),
             path: self.path.clone(),
         }
+    }
+
+    pub(crate) fn opened(&self) -> Option<(u64, &std::path::Path, &WorkspaceMetadata)> {
+        let (epoch, path) = self.opened.as_ref()?;
+        Some((*epoch, path, self.current_workspace.as_ref()?))
+    }
+
+    pub(crate) fn is_active_form(&self) -> bool {
+        matches!(
+            self.status,
+            FormStatus::Editing(_) | FormStatus::Pending { .. } | FormStatus::Failed { .. }
+        )
     }
 
     fn begin(&mut self, operation: WorkspaceOperation) {

@@ -4,7 +4,7 @@ use nt_application::chapter_map::build_candidate_map;
 use nt_application::source_scope::{ScopeWorking, evaluate_scope_within};
 use nt_application::volume_import::{
     CapturedSourceError, GenerationCommitError, ImportWriteError, MAX_IMPORT_WORKING_BYTES,
-    chapter_map::ConfirmedBoundary,
+    MAX_VOLUME_TITLE_BYTES, chapter_map::ConfirmedBoundary,
 };
 use nt_epub::{
     EpubInventory, EpubZip, PARSER_VERSION, ReferenceIndexLimits, SourceExtraction,
@@ -16,8 +16,12 @@ use crate::import_codec::{Digest, ResourceFiles, SnapshotDraft, SnapshotInputs, 
 
 use super::classification_history::PreviousClassifications;
 use super::eligibility::{check_dependencies, check_spine};
+use super::mapping_edit::{
+    MANUAL_MAPPING_RULE, MappingDraft, edit_mapping_reservation, restore_manual_mapping,
+};
 use super::persisted::read_scope;
 use super::prepare_source::SourceReservation;
+use super::publication::{prepare_staged_registration, registration_mode};
 use super::scope::scope_input;
 use super::{
     ImportFlowError, ImportTarget, PreparedImport, capture_epub, prepare_staged_import,
@@ -34,33 +38,97 @@ pub fn prepare_import(
     source_path: &Path,
     target: ImportTarget,
 ) -> Result<PreparedImport, ImportFlowError> {
-    let before = read_saved_volume(workspace, &target.series, &target.volume, None)?;
-    if before.generation != target.expected_parent {
-        return Err(ImportWriteError::from(GenerationCommitError::StaleGeneration).into());
-    }
-    let mode = before.version.state.mode();
+    prepare_from_source(workspace, OriginalSource::SelectedFile(source_path), target)
+}
+
+/// Prepare registration without making the volume visible before publication.
+pub fn prepare_registered_import(
+    workspace: &Path,
+    source_path: &Path,
+    target: ImportTarget,
+) -> Result<PreparedImport, ImportFlowError> {
+    prepare_from_source(workspace, OriginalSource::NewVolume(source_path), target)
+}
+
+pub(super) fn prepare_edited_mapping(
+    draft: &MappingDraft,
+    target: ImportTarget,
+) -> Result<PreparedImport, ImportFlowError> {
+    prepare_from_source(
+        draft.workspace(),
+        OriginalSource::MappingDraft(draft),
+        target,
+    )
+}
+
+enum OriginalSource<'a> {
+    SelectedFile(&'a Path),
+    NewVolume(&'a Path),
+    MappingDraft(&'a MappingDraft),
+}
+
+fn prepare_from_source(
+    workspace: &Path,
+    original_source: OriginalSource<'_>,
+    target: ImportTarget,
+) -> Result<PreparedImport, ImportFlowError> {
+    let register = matches!(original_source, OriginalSource::NewVolume(_));
+    let (previous, mode) = if register {
+        (None, registration_mode(workspace, &target)?)
+    } else {
+        let before = read_saved_volume(workspace, &target.series, &target.volume, None)?;
+        if before.generation != target.expected_parent {
+            return Err(ImportWriteError::from(GenerationCommitError::StaleGeneration).into());
+        }
+        (before.record, before.version.state.mode())
+    };
     let objects = FileObjectStore::new(workspace).map_err(ImportFlowError::Files)?;
     let images = FileImportSourceStore::new(workspace).map_err(ImportFlowError::Files)?;
-    let original = capture_epub(&objects, source_path).map_err(ImportFlowError::Capture)?;
+    let (original, requested_edit) = match original_source {
+        OriginalSource::SelectedFile(path) | OriginalSource::NewVolume(path) => (
+            capture_epub(&objects, path).map_err(ImportFlowError::Capture)?,
+            None,
+        ),
+        OriginalSource::MappingDraft(draft) => {
+            (draft.verified_original(previous.as_ref())?, Some(draft))
+        }
+    };
     let epub = Digest(*original.hash.as_bytes());
-    let (confirmed, history, previous_bytes) = match before.record {
+    let (confirmed, saved_mapping, history, previous_bytes) = match previous {
         Some(mut record) => {
             let previous_bytes = record.reimport_history_bytes()?;
             let scope = read_scope(
                 workspace,
                 &target.series,
                 &target.volume,
-                &before.generation,
+                &target.expected_parent,
                 &mut record,
             )?;
             let history = PreviousClassifications::capture(&record.source_index, scope)?;
-            (
-                previous_boundaries(Some(record), epub)?,
-                history,
-                previous_bytes,
-            )
+            let manual = requested_edit.is_some()
+                || record.source.mapping_rule_version == MANUAL_MAPPING_RULE;
+            if manual
+                && record.source.epub_sha256 == epub
+                && record.source.parser_version == PARSER_VERSION
+            {
+                let previous_bytes =
+                    edit_mapping_reservation(&record, requested_edit, previous_bytes)?;
+                (Vec::new(), Some(record.mapping), history, previous_bytes)
+            } else {
+                (
+                    previous_boundaries(Some(record), epub)?,
+                    None,
+                    history,
+                    previous_bytes,
+                )
+            }
         }
-        None => (Vec::new(), PreviousClassifications::default(), 0),
+        None => (
+            Vec::new(),
+            None,
+            PreviousClassifications::default(),
+            if register { MAX_VOLUME_TITLE_BYTES } else { 0 },
+        ),
     };
 
     let file = objects
@@ -74,6 +142,7 @@ pub fn prepare_import(
         .checked_sub(previous_bytes)
         .ok_or(CapturedSourceError::ResourceLimit)?;
     let inventory = EpubInventory::inspect_captured(&mut archive, inventory_memory)?;
+    let display_title = register.then(|| import_title(&inventory)).flatten();
     check_spine(&inventory).map_err(ImportFlowError::Blocked)?;
     let measured = SourceReservation::measure(&mut archive, &inventory, epub.0, previous_bytes)?;
     let navigation_memory = measured.remaining()?;
@@ -116,7 +185,18 @@ pub fn prepare_import(
     for (document, blocks) in input.documents.iter_mut().zip(blocks) {
         document.blocks = blocks;
     }
-    let mapping = build_candidate_map(&input).map_err(ImportFlowError::Mapping)?;
+    let (mapping, mapping_rule) = match saved_mapping {
+        Some(saved) => {
+            let (mapping, confirmed) = restore_manual_mapping(saved, requested_edit, &input)?;
+            input.confirmed_boundaries = confirmed;
+            (mapping, MANUAL_MAPPING_RULE)
+        }
+        None if requested_edit.is_some() => return Err(ImportFlowError::InvalidSnapshot),
+        None => (
+            build_candidate_map(&input).map_err(ImportFlowError::Mapping)?,
+            MAPPING_RULE,
+        ),
+    };
     source.navigation = std::mem::take(&mut input.navigation);
     source.navigation_diagnostics = std::mem::take(&mut input.diagnostics);
     let navigation_labels = nt_epub::SourceExtraction::read_captured_navigation_labels(
@@ -171,7 +251,7 @@ pub fn prepare_import(
             mapping: &mapping,
             confirmed_boundaries: &input.confirmed_boundaries,
             references: &references,
-            mapping_rule_version: MAPPING_RULE,
+            mapping_rule_version: mapping_rule,
             classification_rule_version: SCOPE_RULE,
         },
         &files,
@@ -197,7 +277,36 @@ pub fn prepare_import(
         .stage(&scope, &objects)
         .map_err(ImportFlowError::Stage)?;
     drop(scope);
-    prepare_staged_import(workspace, target, staged)
+    if register {
+        prepare_staged_registration(workspace, target, staged, display_title)
+    } else {
+        prepare_staged_import(workspace, target, staged)
+    }
+}
+
+fn import_title(inventory: &EpubInventory) -> Option<String> {
+    let metadata = inventory.metadata.values.iter().find(|value| {
+        value.name == "title"
+            && value.namespace.as_deref() == Some("http://purl.org/dc/elements/1.1/")
+            && !value.value.trim().is_empty()
+    })?;
+    let mut title = String::with_capacity(MAX_VOLUME_TITLE_BYTES);
+    for character in metadata
+        .value
+        .trim()
+        .chars()
+        .filter(|value| !value.is_control())
+    {
+        if title.len() + character.len_utf8() > MAX_VOLUME_TITLE_BYTES {
+            break;
+        }
+        title.push(character);
+    }
+    if title.trim().is_empty() {
+        return None;
+    }
+    title.truncate(title.trim_end().len());
+    Some(title)
 }
 
 fn previous_boundaries(

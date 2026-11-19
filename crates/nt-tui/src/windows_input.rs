@@ -1,5 +1,7 @@
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use crossterm_winapi::{Console, Handle, InputRecord, KeyEventRecord};
+use crossterm::event::{
+    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
+use crossterm_winapi::{Console, ConsoleMode, EventFlags, Handle, InputRecord, KeyEventRecord};
 use std::collections::HashSet;
 use std::io;
 use std::time::{Duration, Instant};
@@ -214,6 +216,7 @@ pub(crate) struct WindowsInputReader {
     input_handle: Handle,
     key_state: WindowsKeyState,
     surrogate_buffer: WindowsSurrogateBuffer,
+    mouse_left_down: bool,
 }
 
 impl WindowsInputReader {
@@ -224,7 +227,18 @@ impl WindowsInputReader {
             input_handle: input,
             key_state: WindowsKeyState::default(),
             surrogate_buffer: WindowsSurrogateBuffer::default(),
+            mouse_left_down: false,
         })
+    }
+
+    pub(crate) fn enable_mouse_input(&self) -> io::Result<()> {
+        const ENABLE_MOUSE_INPUT: u32 = 0x0010;
+        const ENABLE_QUICK_EDIT: u32 = 0x0040;
+        const ENABLE_EXTENDED_FLAGS: u32 = 0x0080;
+        let input = ConsoleMode::from(self.input_handle.clone());
+        input.set_mode(
+            (input.mode()? | ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS) & !ENABLE_QUICK_EDIT,
+        )
     }
 
     pub(crate) fn read_event(&mut self) -> io::Result<Event> {
@@ -256,7 +270,33 @@ impl WindowsInputReader {
                     self.key_state.reconcile_focus(is_virtual_key_down);
                     Some(Event::FocusGained)
                 }
-                InputRecord::FocusEvent(_) => Some(Event::FocusLost),
+                InputRecord::FocusEvent(_) => {
+                    self.mouse_left_down = false;
+                    Some(Event::FocusLost)
+                }
+                InputRecord::MouseEvent(mouse)
+                    if mouse.event_flags == EventFlags::PressOrRelease =>
+                {
+                    let left = mouse.button_state.left_button();
+                    let was_down = std::mem::replace(&mut self.mouse_left_down, left);
+                    let just_pressed = left && !was_down;
+                    if just_pressed
+                        && !mouse
+                            .control_key_state
+                            .has_state(CONTROL_PRESSED | ALT_PRESSED | SHIFT_PRESSED)
+                        && mouse.mouse_position.x >= 0
+                        && mouse.mouse_position.y >= 0
+                    {
+                        Some(Event::Mouse(MouseEvent {
+                            kind: MouseEventKind::Down(MouseButton::Left),
+                            column: mouse.mouse_position.x as u16,
+                            row: mouse.mouse_position.y as u16,
+                            modifiers: KeyModifiers::NONE,
+                        }))
+                    } else {
+                        None
+                    }
+                }
                 InputRecord::MouseEvent(_) | InputRecord::MenuEvent(_) => None,
             };
             if event.is_some() {

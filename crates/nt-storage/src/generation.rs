@@ -31,9 +31,7 @@ impl SqliteGenerationReader {
         let root = root.as_ref();
         let (connection, metadata) =
             crate::workspace::open_read_only_workspace(root).map_err(map_workspace_error)?;
-        if metadata.schema_version != 2
-            && metadata.schema_version != crate::workspace::SCHEMA_VERSION
-        {
+        if metadata.schema_version < 2 {
             return Err(GenerationCommitError::CorruptWorkspace);
         }
         Ok(Self {

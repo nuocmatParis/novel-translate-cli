@@ -32,7 +32,7 @@ enum WriterMessage {
         reply: SyncSender<Result<GenerationCommitResult, GenerationCommitError>>,
     },
     CommitImport {
-        request: nt_domain::volume_import::VolumeImportWriteRequest,
+        request: Box<nt_domain::volume_import::VolumeImportWriteRequest>,
         fingerprint: [u8; 32],
         reply: SyncSender<
             Result<GenerationCommitResult, nt_application::volume_import::ImportWriteError>,
@@ -234,7 +234,7 @@ fn writer_loop(
                     connection,
                     store,
                     series_id,
-                    request,
+                    *request,
                     fingerprint,
                 );
                 let _ = reply.send(result);

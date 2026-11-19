@@ -3,6 +3,11 @@
 #[path = "import_io.rs"]
 mod payload_io;
 pub use payload_io::{ImportDigestSink, stage_import_payload};
+#[path = "import_registration.rs"]
+mod volume_registration;
+pub(crate) use volume_registration::{
+    check_registration, register_volume, verify_registration_replay,
+};
 
 use std::collections::BTreeSet;
 use std::io::{Read, Seek, SeekFrom};
@@ -140,7 +145,15 @@ impl VolumeImportSnapshot<'_> {
             Some((rowid, _, VolumeState::Imported(state))) => {
                 verified_blob(&self.transaction, rowid, state.payload.object).map(Some)
             }
-            _ => Ok(None),
+            _ => {
+                volume_registration::ensure_visible(
+                    &self.transaction,
+                    &self.series_id,
+                    &self.generation_id,
+                    volume,
+                )?;
+                Ok(None)
+            }
         }
     }
 
@@ -153,6 +166,12 @@ impl VolumeImportSnapshot<'_> {
         mapping_version: &[u8; 32],
     ) -> Result<Option<(VolumeImportVersion, VerifiedImportPayload<'_>)>, ImportReadError> {
         volume_exists(&self.transaction, &self.series_id, volume)?;
+        volume_registration::ensure_visible(
+            &self.transaction,
+            &self.series_id,
+            &self.generation_id,
+            volume,
+        )?;
         if schema_version(&self.transaction)? < 3 {
             return Ok(None);
         }
@@ -442,13 +461,16 @@ pub(crate) fn read_volume_with_budget(
             }
             (Some(at), state, resources)
         }
-        None => (
-            None,
-            VolumeState::Unimported {
-                mode: ScopeMode::AllText,
-            },
-            Vec::new(),
-        ),
+        None => {
+            volume_registration::ensure_visible(connection, series, generation, volume)?;
+            (
+                None,
+                VolumeState::Unimported {
+                    mode: ScopeMode::AllText,
+                },
+                Vec::new(),
+            )
+        }
     };
     Ok(VolumeImportVersion {
         volume_id: volume.clone(),

@@ -15,21 +15,24 @@ pub use text_runs::{ProjectedSpan, TextRun, TextUnit, TextUnits, ValidatedTextRu
 
 pub(crate) use inventory_records::Severity as InventorySeverity;
 pub use inventory_records::StoredInventory;
+pub(crate) use mapping_records::MapIssue as StoredMapIssue;
 pub use mapping_records::StoredMapping;
-pub(crate) use mapping_records::{MainFlow as StoredMainFlow, MapIssue as StoredMapIssue};
+pub use mapping_records::{
+    BlockRange as StoredBlockRange, MainFlow as StoredMainFlow,
+    MappingStatus as StoredMappingStatus,
+};
 pub(crate) use records::Budget;
 pub use records::{BlockLocator, Digest, ElementLocator, Span, TextLocator, UnitRange};
 pub use resource_records::{
     ReferenceIssue, ResourceFileError, ResourceFiles, ResourceInput, ResourceRecord, ResourceRole,
     ResourceUse,
 };
+pub use scope_records::DecisionMatch as ScopeDecisionMatch;
+pub(crate) use scope_records::RelationTarget as ScopeTarget;
 pub use scope_records::{
     ClassificationEvidence as ScopeEvidence, ContentKind as ScopeContentKind,
     Context as ScopeContext, Handling as ScopeHandling, Location as ScopeLocation, RangeLookup,
     RelatedText as ScopeRelatedText, ScopeRecord, StoredScope,
-};
-pub(crate) use scope_records::{
-    DecisionMatch as ScopeDecisionMatch, RelationTarget as ScopeTarget,
 };
 pub(crate) use snapshot_records::SourceIssue;
 pub use snapshot_records::{
@@ -39,9 +42,7 @@ pub use snapshot_records::{
 pub use source_records::{
     ArchiveSourceError, ReplayedSource, StoredSourceBlock, StoredSourceIndex, StoredUnitRun,
 };
-pub(crate) use source_records::{
-    InlineKind as StoredInlineKind, ProtectedUnit as StoredProtectedUnit,
-};
+pub use source_records::{InlineKind as StoredInlineKind, ProtectedUnit as StoredProtectedUnit};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CodecError {

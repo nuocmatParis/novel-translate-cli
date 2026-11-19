@@ -7,6 +7,7 @@ use crate::workspace::{GenerationId, OperationId, SeriesId, VolumeId};
 pub const MAX_IMPORT_PAYLOAD_BYTES: u64 = 512 * 1024 * 1024;
 pub const MAX_IMPORT_WORKING_BYTES: usize = 256 * 1024 * 1024;
 pub const MAX_IMPORT_RECORDS: usize = 32_000_000;
+pub const MAX_VOLUME_TITLE_BYTES: usize = 512;
 
 #[path = "captured_source.rs"]
 mod captured_source;
@@ -104,6 +105,12 @@ pub struct VolumeImportWriteRequest {
     operation: ImportOperation,
     objects: Vec<ObjectReference>,
     working_bytes: usize,
+    registration: Option<VolumeRegistration>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VolumeRegistration {
+    pub display_title: Option<String>,
 }
 
 impl VolumeImportWriteRequest {
@@ -231,7 +238,44 @@ impl VolumeImportWriteRequest {
             operation,
             objects,
             working_bytes: allocation,
+            registration: None,
         })
+    }
+
+    /// A first import must atomically create its volume and keep the parent's
+    /// series default. Only an ordinary publication can be a registration.
+    pub fn with_registration(
+        mut self,
+        display_title: Option<String>,
+    ) -> Result<Self, InvalidImportRequest> {
+        if !matches!(
+            self.operation,
+            ImportOperation::Publish {
+                default_delta: None,
+                ..
+            }
+        ) || self.registration.is_some()
+            || display_title
+                .as_ref()
+                .is_some_and(|title| title.trim().is_empty() || title.chars().any(char::is_control))
+        {
+            return Err(InvalidImportRequest::Invalid);
+        }
+        let title_capacity = display_title.as_ref().map_or(0, String::capacity);
+        if title_capacity > MAX_VOLUME_TITLE_BYTES {
+            return Err(InvalidImportRequest::ResourceLimit);
+        }
+        self.working_bytes = self
+            .working_bytes
+            .checked_add(title_capacity)
+            .filter(|bytes| *bytes <= MAX_IMPORT_WORKING_BYTES)
+            .ok_or(InvalidImportRequest::ResourceLimit)?;
+        self.registration = Some(VolumeRegistration { display_title });
+        Ok(self)
+    }
+
+    pub fn registration(&self) -> Option<&VolumeRegistration> {
+        self.registration.as_ref()
     }
 
     pub fn series_id(&self) -> &SeriesId {

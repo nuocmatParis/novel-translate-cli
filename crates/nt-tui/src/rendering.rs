@@ -12,7 +12,7 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Widget,
 use unicode_segmentation::UnicodeSegmentation;
 
 pub(crate) fn render(buffer: &mut Buffer, area: Rect, state: &AppState) {
-    render_with_optional_workspace(buffer, area, state, None);
+    render_with_optional_workspace(buffer, area, state, None, None);
 }
 
 pub(crate) fn render_with_workspace(
@@ -21,7 +21,17 @@ pub(crate) fn render_with_workspace(
     state: &AppState,
     workspace: &WorkspaceFormSnapshot,
 ) {
-    render_with_optional_workspace(buffer, area, state, Some(workspace));
+    render_with_optional_workspace(buffer, area, state, Some(workspace), None);
+}
+
+pub(crate) fn render_with_volumes(
+    buffer: &mut Buffer,
+    area: Rect,
+    state: &AppState,
+    workspace: &WorkspaceFormSnapshot,
+    body: &str,
+) {
+    render_with_optional_workspace(buffer, area, state, Some(workspace), Some(body));
 }
 
 fn render_with_optional_workspace(
@@ -29,6 +39,7 @@ fn render_with_optional_workspace(
     area: Rect,
     state: &AppState,
     workspace: Option<&WorkspaceFormSnapshot>,
+    volumes: Option<&str>,
 ) {
     if !terminal_size_supported(area) {
         render_too_small(buffer, area);
@@ -48,9 +59,11 @@ fn render_with_optional_workspace(
         state.focus_region(),
         navigation_area,
     );
-    render_screen(buffer, state, screen_area, workspace);
+    render_screen(buffer, state, screen_area, workspace, volumes);
 
-    let footer_line = if state.current_screen() == Screen::Overview {
+    let footer_line = if volumes.is_some() {
+        footer_text(state, area.width)
+    } else if state.current_screen() == Screen::Overview {
         workspace.map_or_else(
             || footer_text(state, area.width),
             |workspace| Line::from(workspace.footer_text()),
@@ -105,20 +118,33 @@ fn layout_areas(area: Rect) -> (Rect, Rect, Rect, Rect) {
     (header_area, navigation_area, screen_area, footer_area)
 }
 
-pub(crate) fn scroll_metrics(area: Rect, state: &AppState) -> (u16, u16) {
+pub(crate) fn scroll_metrics(area: Rect, state: &AppState, volumes: Option<&str>) -> (u16, u16) {
     if !terminal_size_supported(area) {
         return (1, 0);
     }
     let body_area = body_area(area);
-    let body = empty_state(state.current_screen()).body;
+    let body = volumes.unwrap_or_else(|| empty_state(state.current_screen()).body);
     scroll_metrics_for_body(body_area, body)
 }
 
-pub(crate) fn capture_scroll_anchor(state: &mut AppState, area: Rect) {
+pub(crate) fn picker_hit(area: Rect, state: &AppState, column: u16, row: u16) -> bool {
+    if !terminal_size_supported(area) || state.scroll_offset() != 0 || state.help_open() {
+        return false;
+    }
+    let inner = Block::default()
+        .borders(Borders::ALL)
+        .inner(body_area(area));
+    let width = format!("  [{}]", crate::screens::PICKER_LABEL).cell_width() as u16;
+    inner.height > 0
+        && row == inner.y
+        && (inner.x..inner.x.saturating_add(width.min(inner.width))).contains(&column)
+}
+
+pub(crate) fn capture_scroll_anchor(state: &mut AppState, area: Rect, volumes: Option<&str>) {
     if !terminal_size_supported(area) {
         return;
     }
-    let body = empty_state(state.current_screen()).body;
+    let body = volumes.unwrap_or_else(|| empty_state(state.current_screen()).body);
     let width = Block::default()
         .borders(Borders::ALL)
         .inner(body_area(area))
@@ -128,11 +154,11 @@ pub(crate) fn capture_scroll_anchor(state: &mut AppState, area: Rect) {
     state.set_scroll_anchor_byte(byte);
 }
 
-pub(crate) fn scroll_offset_for_anchor(area: Rect, state: &AppState) -> u16 {
+pub(crate) fn scroll_offset_for_anchor(area: Rect, state: &AppState, volumes: Option<&str>) -> u16 {
     if !terminal_size_supported(area) {
         return 0;
     }
-    let body = empty_state(state.current_screen()).body;
+    let body = volumes.unwrap_or_else(|| empty_state(state.current_screen()).body);
     let content_area = body_area(area);
     let width = Block::default()
         .borders(Borders::ALL)
@@ -364,20 +390,28 @@ fn scroll_hint(state: &AppState, width: u16) -> Option<&'static str> {
 
 fn footer_text(state: &AppState, width: u16) -> Line<'static> {
     let text = match state.focus_region() {
+        FocusRegion::Navigation if state.has_workspace_controls() => {
+            "↑/↓ Chọn màn · Enter Mở · Tab Workspace · F1 Trợ giúp · Ctrl+C Thoát"
+        }
         FocusRegion::Navigation => {
             "Điều hướng · ↑/↓: Chọn · Enter: Mở · Tab: Thoát · F1: Trợ giúp · Ctrl+C: Thoát"
         }
         FocusRegion::Exit => {
             "[ Thoát ] · Enter: Thoát · Tab: Điều hướng · F1: Trợ giúp · Ctrl+C: Thoát"
         }
+        FocusRegion::Workspace => {
+            "I Nhập EPUB · Enter Chọn · Ctrl+PgDn Cuộn · Tab Đổi vùng · F1 Trợ giúp"
+        }
     };
     match scroll_hint(state, width) {
         Some(hint) if width < 120 => {
             let compact = match state.focus_region() {
+                FocusRegion::Navigation if state.has_workspace_controls() => text,
                 FocusRegion::Navigation => {
                     "↑/↓ Chọn · Enter Mở · Tab Thoát · F1 Trợ giúp · Ctrl+C Thoát"
                 }
                 FocusRegion::Exit => "Enter Thoát · Tab Điều hướng · F1 Trợ giúp · Ctrl+C Thoát",
+                FocusRegion::Workspace => text,
             };
             Line::from(format!("{compact} · {hint}"))
         }
@@ -403,6 +437,7 @@ fn render_help(
     Clear.render(popup, buffer);
 
     let interaction = match state.focus_region() {
+        FocusRegion::Workspace => "I: Nhập tập · ↑/↓: Chọn chương · ←/→: Đổi tập · Tab: Đổi focus",
         FocusRegion::Navigation => "↑/↓: Chọn màn · Enter: Mở màn · Tab: Chuyển tới Thoát",
         FocusRegion::Exit => "Enter: Thoát · Tab: Quay về Điều hướng",
     };
@@ -449,6 +484,7 @@ fn render_screen(
     state: &AppState,
     area: Rect,
     workspace: Option<&WorkspaceFormSnapshot>,
+    volumes: Option<&str>,
 ) {
     let screen = state.current_screen();
     let content = empty_state(screen);
@@ -460,7 +496,10 @@ fn render_screen(
         .wrap(Wrap { trim: true })
         .block(Block::default().borders(Borders::ALL))
         .render(heading, buffer);
-    let body_text = workspace.map_or_else(|| content.body.to_owned(), WorkspaceFormSnapshot::body);
+    let body_text = volumes.map_or_else(
+        || workspace.map_or_else(|| content.body.to_owned(), WorkspaceFormSnapshot::body),
+        str::to_owned,
+    );
     render_wrapped_body(
         buffer,
         body_area,
@@ -1236,6 +1275,7 @@ mod tests {
                         "↑/↓: Chọn màn · Enter: Mở màn · Tab: Chuyển tới Thoát"
                     }
                     FocusRegion::Exit => "Enter: Thoát · Tab: Quay về Điều hướng",
+                    FocusRegion::Workspace => unreachable!("fixture has no workspace controls"),
                 };
                 assert!(
                     text.contains(restored_actions),

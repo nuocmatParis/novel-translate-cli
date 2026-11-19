@@ -5,7 +5,9 @@ use nt_application::volume_import::{
     OperationId, SeriesId, VolumeId, VolumeImportRepository, VolumeImportWriteRequest, VolumeState,
     source_scope::ScopeMode,
 };
-use nt_storage::{FileObjectStore, SqliteGenerationWriter, SqliteVolumeImportReader};
+use nt_storage::{
+    FileObjectStore, SqliteGenerationWriter, SqliteVolumeImportReader, VolumeImportSnapshot,
+};
 
 use crate::import_codec::{StagedVolume, VolumeRecord};
 
@@ -66,9 +68,60 @@ pub(super) fn prepare_staged_scope(
     )
 }
 
+pub(super) fn prepare_staged_registration(
+    workspace: &Path,
+    target: ImportTarget,
+    staged: StagedVolume,
+    display_title: Option<String>,
+) -> Result<PreparedImport, ImportFlowError> {
+    prepare_staged_change(
+        workspace,
+        target,
+        staged,
+        ChangeKind::Registration { display_title },
+    )
+}
+
+pub(super) fn registration_mode(
+    workspace: &Path,
+    target: &ImportTarget,
+) -> Result<ScopeMode, ImportFlowError> {
+    let mut reader = SqliteVolumeImportReader::open(workspace)?;
+    let snapshot = reader.begin_snapshot()?;
+    validate_parent(&snapshot, target)?;
+    let mode = vacant_volume_mode(&snapshot, target)?;
+    snapshot.finish()?;
+    Ok(mode)
+}
+
+fn vacant_volume_mode(
+    snapshot: &VolumeImportSnapshot<'_>,
+    target: &ImportTarget,
+) -> Result<ScopeMode, ImportFlowError> {
+    match snapshot.volume(&target.volume) {
+        Err(ImportWriteError::InvalidVolume) => Ok(snapshot.series_default()?),
+        Ok(_) => Err(ImportWriteError::InvalidVolume.into()),
+        Err(error) => Err(error.into()),
+    }
+}
+
 enum ChangeKind {
     Import,
+    Registration { display_title: Option<String> },
     Scope { default_delta: Option<ScopeMode> },
+}
+
+fn validate_parent(
+    snapshot: &VolumeImportSnapshot<'_>,
+    target: &ImportTarget,
+) -> Result<(), ImportFlowError> {
+    if snapshot.series_id() != &target.series {
+        return Err(ImportFlowError::InvalidWorkspace);
+    }
+    if snapshot.generation_id() != &target.expected_parent {
+        return Err(ImportWriteError::from(GenerationCommitError::StaleGeneration).into());
+    }
+    Ok(())
 }
 
 fn prepare_staged_change(
@@ -79,24 +132,26 @@ fn prepare_staged_change(
 ) -> Result<PreparedImport, ImportFlowError> {
     let mut reader = SqliteVolumeImportReader::open(workspace)?;
     let snapshot = reader.begin_snapshot()?;
-    if snapshot.series_id() != &target.series {
-        return Err(ImportFlowError::InvalidWorkspace);
-    }
-    if snapshot.generation_id() != &target.expected_parent {
-        return Err(ImportWriteError::from(GenerationCommitError::StaleGeneration).into());
-    }
-    let mut current = snapshot.volume(&target.volume)?;
+    validate_parent(&snapshot, &target)?;
     let order = |left: &nt_application::volume_import::VolumeResource,
                  right: &nt_application::volume_import::VolumeResource| {
         (&left.role, &left.canonical_path).cmp(&(&right.role, &right.canonical_path))
     };
-    current.resources.sort_unstable_by(order);
     staged.resources.sort_unstable_by(order);
-    match kind {
-        ChangeKind::Import if current.state.mode() != staged.state.mode => {
-            return Err(ImportFlowError::InvalidSnapshot);
+    match &kind {
+        ChangeKind::Import => {
+            if snapshot.volume(&target.volume)?.state.mode() != staged.state.mode {
+                return Err(ImportFlowError::InvalidSnapshot);
+            }
+        }
+        ChangeKind::Registration { .. } => {
+            if vacant_volume_mode(&snapshot, &target)? != staged.state.mode {
+                return Err(ImportFlowError::InvalidSnapshot);
+            }
         }
         ChangeKind::Scope { .. } => {
+            let mut current = snapshot.volume(&target.volume)?;
+            current.resources.sort_unstable_by(order);
             let VolumeState::Imported(before) = &current.state else {
                 return Err(ImportFlowError::InvalidSnapshot);
             };
@@ -107,7 +162,6 @@ fn prepare_staged_change(
                 return Err(ImportFlowError::InvalidSnapshot);
             }
         }
-        ChangeKind::Import => {}
     }
     let StagedVolume {
         record,
@@ -152,8 +206,8 @@ fn prepare_staged_change(
         record,
     )?;
     snapshot.finish()?;
-    let operation = match kind {
-        ChangeKind::Import => ImportOperation::Publish {
+    let operation = match &kind {
+        ChangeKind::Import | ChangeKind::Registration { .. } => ImportOperation::Publish {
             volume_id: target.volume.clone(),
             state,
             resources,
@@ -163,7 +217,7 @@ fn prepare_staged_change(
             volume_id: target.volume.clone(),
             state: VolumeState::Imported(state),
             resources,
-            default_delta,
+            default_delta: *default_delta,
         },
     };
     let request = VolumeImportWriteRequest::new(
@@ -175,6 +229,11 @@ fn prepare_staged_change(
         objects,
     )
     .map_err(ImportFlowError::from)?;
+    let request = if let ChangeKind::Registration { display_title } = kind {
+        request.with_registration(display_title)?
+    } else {
+        request
+    };
     Ok(PreparedImport::new(workspace, target.volume, request))
 }
 

@@ -6,6 +6,7 @@ pub(crate) const MIN_TERMINAL_ROWS: u16 = 24;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum FocusRegion {
     Navigation,
+    Workspace,
     Exit,
 }
 
@@ -13,14 +14,16 @@ impl FocusRegion {
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::Navigation => "Điều hướng",
+            Self::Workspace => "Workspace",
             Self::Exit => "Thoát",
         }
     }
 
-    pub(crate) const fn next(self, _reverse: bool) -> Self {
-        match self {
-            Self::Navigation => Self::Exit,
-            Self::Exit => Self::Navigation,
+    pub(crate) const fn next(self, reverse: bool, workspace: bool) -> Self {
+        match (self, reverse, workspace) {
+            (Self::Navigation, false, true) | (Self::Exit, true, true) => Self::Workspace,
+            (Self::Navigation, _, _) | (Self::Workspace, false, _) => Self::Exit,
+            _ => Self::Navigation,
         }
     }
 }
@@ -30,6 +33,7 @@ pub(crate) struct AppState {
     current_screen: Screen,
     selected_screen: Screen,
     focus_region: FocusRegion,
+    workspace_controls: bool,
     help_open: bool,
     terminal_width: u16,
     terminal_height: u16,
@@ -45,6 +49,7 @@ impl AppState {
             current_screen: Screen::Overview,
             selected_screen: Screen::Overview,
             focus_region: FocusRegion::Navigation,
+            workspace_controls: false,
             help_open: false,
             terminal_width: MIN_TERMINAL_COLUMNS,
             terminal_height: MIN_TERMINAL_ROWS,
@@ -65,6 +70,10 @@ impl AppState {
 
     pub(crate) const fn focus_region(self) -> FocusRegion {
         self.focus_region
+    }
+
+    pub(crate) const fn has_workspace_controls(self) -> bool {
+        self.workspace_controls
     }
 
     pub(crate) const fn help_open(self) -> bool {
@@ -159,7 +168,20 @@ impl AppState {
     }
 
     pub(crate) fn cycle_focus(&mut self, reverse: bool) {
-        self.focus_region = self.focus_region.next(reverse);
+        self.focus_region = self.focus_region.next(reverse, self.workspace_controls);
+    }
+
+    pub(crate) fn set_workspace_controls(&mut self, available: bool) {
+        self.workspace_controls = available;
+        if !available && self.focus_region == FocusRegion::Workspace {
+            self.focus_region = FocusRegion::Navigation;
+        }
+    }
+
+    pub(crate) fn focus_workspace(&mut self) {
+        if self.workspace_controls {
+            self.focus_region = FocusRegion::Workspace;
+        }
     }
 }
 

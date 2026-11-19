@@ -62,7 +62,8 @@ pub(crate) fn dispatch_event(
 
     if let Event::Key(key) = event
         && matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat)
-        && key.modifiers == KeyModifiers::NONE
+        && (key.modifiers == KeyModifiers::NONE
+            || (state.has_workspace_controls() && key.modifiers == KeyModifiers::CONTROL))
     {
         match key.code {
             KeyCode::PageUp if state.can_scroll_up() => {
@@ -93,6 +94,7 @@ pub(crate) fn dispatch_event(
     }
 
     match state.focus_region() {
+        FocusRegion::Workspace => UiAction::None,
         FocusRegion::Navigation => match (key.code, key.kind, key.modifiers) {
             (KeyCode::Up, KeyEventKind::Press | KeyEventKind::Repeat, KeyModifiers::NONE) => {
                 state.move_selection(false);

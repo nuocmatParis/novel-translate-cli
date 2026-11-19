@@ -14,7 +14,7 @@ const DATABASE_FILE: &str = "series.sqlite3";
 const LEGACY_GO_MARKER: &str = "workspace.yaml";
 const BOOTSTRAP_MARKER: &str = ".nt-bootstrap-incomplete";
 const BOOTSTRAP_MARKER_CONTENT: &[u8] = b"NT-P02-M002-BOOTSTRAP-V1\n";
-pub(super) const SCHEMA_VERSION: u32 = 3;
+pub(super) const SCHEMA_VERSION: u32 = 4;
 pub(super) const APPLICATION_ID: i64 = 0x4E54_5253;
 const BOOTSTRAP_GENERATION: &str = "g0";
 const BUSY_TIMEOUT: Duration = Duration::from_secs(2);
@@ -174,8 +174,11 @@ impl WorkspaceRepository for SqliteWorkspaceRepository {
         if preflight_metadata.schema_version == 1 {
             super::migration::migrate_v1_to_v2(&root, &mut connection)?;
         }
-        if preflight_metadata.schema_version < SCHEMA_VERSION {
+        if preflight_metadata.schema_version < 3 {
             super::migration::migrate_v2_to_v3(&root, &mut connection)?;
+        }
+        if preflight_metadata.schema_version < 4 {
+            super::migration::migrate_v3_to_v4(&root, &mut connection)?;
         }
         let metadata = validate_database(&connection)?;
         super::import::verify_import_integrity(&root, &connection, &metadata.series.id)?;
@@ -451,8 +454,7 @@ fn recover_committed_bootstrap(root: &Path) -> Result<Option<WorkspaceMetadata>,
         )
         .map_err(map_corrupt_or_sqlite_error)?;
 
-    if application_id == APPLICATION_ID
-        && (schema_version == 2 || schema_version == i64::from(SCHEMA_VERSION))
+    if application_id == APPLICATION_ID && (2..=i64::from(SCHEMA_VERSION)).contains(&schema_version)
     {
         return validate_database(&connection).map(Some);
     }
@@ -658,6 +660,7 @@ fn bootstrap_v2_with_hook(
         )
         .map_err(map_sqlite_error)?;
     super::migration::apply_m003(&transaction)?;
+    super::migration::apply_m004(&transaction)?;
     transaction
         .execute_batch(&format!(
             "PRAGMA application_id = {APPLICATION_ID}; PRAGMA user_version = {SCHEMA_VERSION};"
@@ -711,7 +714,7 @@ fn validate_database_inner(
             supported: SCHEMA_VERSION,
         });
     }
-    if version != 1 && version != 2 && version != i64::from(SCHEMA_VERSION) {
+    if !(1..=i64::from(SCHEMA_VERSION)).contains(&version) {
         return Err(WorkspaceError::CorruptWorkspace);
     }
 
@@ -746,6 +749,7 @@ fn validate_database_inner(
         1 => 4,
         2 => 6,
         3 => 9,
+        4 => 10,
         _ => return Err(WorkspaceError::CorruptWorkspace),
     };
     if table_count != expected_table_count {
@@ -755,8 +759,11 @@ fn validate_database_inner(
     if version >= 2 {
         validate_schema_v2_columns(connection)?;
     }
-    if version == 3 {
+    if version >= 3 {
         super::migration::validate_m003(connection, probe_write_constraints)?;
+    }
+    if version >= 4 {
+        super::migration::validate_m004(connection)?;
     }
 
     if !has_foreign_key_group(

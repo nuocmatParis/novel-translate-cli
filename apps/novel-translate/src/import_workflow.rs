@@ -2,6 +2,7 @@
 
 mod classification_history;
 mod eligibility;
+mod mapping_edit;
 mod persisted;
 mod prepare;
 mod prepare_source;
@@ -12,8 +13,12 @@ mod scope_change;
 mod scope_proof;
 
 pub use eligibility::BlockingSource;
+pub use mapping_edit::{
+    ChapterPreview, MappingDraft, MappingEditError, MappingPreview, MappingViewVersion,
+    prepare_mapping_confirmation, preview_mapping_edit,
+};
 pub use persisted::{ImportFlowError, SavedVolume, read_saved_volume, read_volume_scope};
-pub use prepare::prepare_import;
+pub use prepare::{prepare_import, prepare_registered_import};
 pub use publication::{ImportTarget, PreparedImport, Publication, prepare_staged_import};
 pub use readiness::{ImportReadiness, ReviewIssue};
 pub use scope_change::{Classification, ScopeChange, prepare_scope_change};
@@ -35,6 +40,7 @@ use nt_storage::FileObjectStore;
 #[derive(Debug)]
 pub enum CaptureError {
     SourceUnavailable,
+    PermissionDenied,
     InvalidSource,
     SourceChanged,
     UnsupportedFilesystem,
@@ -73,6 +79,7 @@ fn open_source(path: &Path) -> Result<File, CaptureError> {
 fn source_error(error: io::Error) -> CaptureError {
     match error.raw_os_error() {
         Some(32 | 33) => CaptureError::SourceChanged,
+        _ if error.kind() == io::ErrorKind::PermissionDenied => CaptureError::PermissionDenied,
         _ => CaptureError::SourceUnavailable,
     }
 }

@@ -78,6 +78,12 @@ impl SavedVolume {
     pub fn readiness(&self) -> Option<ImportReadiness> {
         self.record.as_ref().map(ImportReadiness::from_record)
     }
+
+    pub fn for_each_review_issue(&self, visit: impl FnMut(super::ReviewIssue)) {
+        if let Some(record) = &self.record {
+            ImportReadiness::visit(record, visit);
+        }
+    }
 }
 
 /// Read the current or an explicitly specified historical generation. The

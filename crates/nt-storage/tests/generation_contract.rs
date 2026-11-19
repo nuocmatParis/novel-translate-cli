@@ -339,7 +339,7 @@ fn v1_open_migrates_through_staging_and_preserves_workspace_and_objects() {
             .expect("insert existing Volume metadata");
         connection
             .execute_batch(
-                "DROP TABLE cp05_resource_refs; DROP TABLE cp05_volume_versions; DROP TABLE cp05_series_defaults; DROP TABLE generation_operations; DROP TABLE generation_object_refs; PRAGMA user_version = 1;",
+                "DROP TABLE cp06_volume_registrations; DROP TABLE cp05_resource_refs; DROP TABLE cp05_volume_versions; DROP TABLE cp05_series_defaults; DROP TABLE generation_operations; DROP TABLE generation_object_refs; PRAGMA user_version = 1;",
             )
             .expect("restore the published v1 schema for migration fixture");
         connection
@@ -364,7 +364,7 @@ fn v1_open_migrates_through_staging_and_preserves_workspace_and_objects() {
         .expect("migrate and open v1 workspace");
     assert_eq!(opened.series, created.series);
     assert_eq!(opened.current_generation.as_str(), "g0");
-    assert_eq!(opened.schema_version, 3);
+    assert_eq!(opened.schema_version, 4);
     assert_eq!(
         fs::read(&object_path).expect("read preserved object"),
         object_bytes
