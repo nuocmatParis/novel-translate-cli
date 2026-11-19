@@ -95,6 +95,14 @@ where
                 stderr,
             }
         }
+        Decision::Volume(command) => {
+            let (exit_code, stdout, stderr) = cli::run_volume_command(command);
+            ProcessOutput {
+                exit_code,
+                stdout,
+                stderr,
+            }
+        }
         Decision::LaunchTui if !stdin_is_terminal || !stdout_is_terminal => ProcessOutput {
             exit_code: 3,
             stdout: String::new(),

@@ -2,6 +2,7 @@
 
 mod diagnostics;
 mod error;
+mod import_commands;
 mod input;
 mod navigation;
 mod rendering;
@@ -17,6 +18,10 @@ pub use diagnostics::{
     DiagnosticRecord, DiagnosticSeverity, DiagnosticSnapshot, DiagnosticStore,
 };
 pub use error::{TuiError, TuiErrorKind};
+pub use import_commands::{
+    BookCatalog, BookChange, BookEdit, BookError, BookPosition, BookSource, BookSummary,
+    BookVersion, BookView, BookWorkspace, ClassificationTarget, VolumeCommands,
+};
 pub use terminal::run_shell;
-pub use terminal::run_shell_with_workspace;
+pub use terminal::{run_shell_with_volumes, run_shell_with_workspace};
 pub use workspace::WorkspaceCommands;

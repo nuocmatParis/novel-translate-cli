@@ -1,6 +1,9 @@
 mod bootstrap;
 mod cli;
 mod diagnostics;
+mod epub_dialog;
+mod import_commands;
+mod import_service;
 mod workspace;
 
 use nt_tui::{DiagnosticStore, TuiError};
@@ -36,5 +39,5 @@ fn launch_tui(
     _diagnostics: DiagnosticStore,
     workspace: Arc<dyn nt_tui::WorkspaceCommands>,
 ) -> Result<(), TuiError> {
-    nt_tui::run_shell_with_workspace(workspace)
+    nt_tui::run_shell_with_volumes(workspace, Arc::new(import_service::ImportService))
 }

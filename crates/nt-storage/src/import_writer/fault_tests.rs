@@ -243,7 +243,7 @@ fn dropped_import_ack_is_reconciled_after_next_generic_write_through_the_same_qu
             .sender
             .send(WriterMessage::CommitImport {
                 fingerprint: fingerprint_import(&request),
-                request: request.clone(),
+                request: Box::new(request.clone()),
                 reply,
             })
             .is_ok()
@@ -297,7 +297,7 @@ fn process_exit_inside_import_before_commit_leaves_previous_state_usable() {
             .open(&fixture.root)
             .unwrap()
             .schema_version,
-        3
+        4
     );
 }
 

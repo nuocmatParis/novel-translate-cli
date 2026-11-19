@@ -6,7 +6,8 @@ pub use nt_domain::volume_import::{
     CapturedScopeElement, CapturedSourceError, CapturedSourceRequest, CapturedUnitRun,
     DetectedImageFormat, ImageInformation, ImportOperation, ImportedVolumeState,
     InvalidImportRequest, MAX_IMPORT_PAYLOAD_BYTES, MAX_IMPORT_RECORDS, MAX_IMPORT_WORKING_BYTES,
-    StagedPayload, VolumeImportVersion, VolumeImportWriteRequest, VolumeResource, VolumeState,
+    MAX_VOLUME_TITLE_BYTES, StagedPayload, VolumeImportVersion, VolumeImportWriteRequest,
+    VolumeResource, VolumeState,
 };
 pub use nt_domain::workspace::{
     GenerationCommitError, GenerationCommitResult, GenerationId, OperationId, SeriesId, VolumeId,

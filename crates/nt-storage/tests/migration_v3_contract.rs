@@ -64,7 +64,8 @@ fn prepare_v2(root: &Path) -> (String, ObjectReference, Vec<u8>) {
     ).unwrap();
     connection
         .execute_batch(
-            "DROP TABLE cp05_resource_refs;
+            "DROP TABLE cp06_volume_registrations;
+         DROP TABLE cp05_resource_refs;
          DROP TABLE cp05_volume_versions;
          DROP TABLE cp05_series_defaults;
          PRAGMA user_version = 2;
@@ -121,7 +122,7 @@ fn v2_migration_backfills_actual_current_generation_and_preserves_verified_backu
     let root = temp.workspace();
     let (series, object, bytes) = prepare_v2(&root);
     let opened = SqliteWorkspaceRepository.open(&root).unwrap();
-    assert_eq!(opened.schema_version, 3);
+    assert_eq!(opened.schema_version, 4);
     assert_eq!(opened.current_generation.as_str(), GENERATION);
 
     let db = Connection::open(root.join("series.sqlite3")).unwrap();
@@ -165,6 +166,7 @@ fn v2_migration_backfills_actual_current_generation_and_preserves_verified_backu
                 .unwrap()
                 .to_string_lossy()
                 .starts_with(".nt-migration-backup-")
+                && schema_version(path) == 2
         })
         .unwrap();
     let backed_up = fs::read(backup.join("objects").join(format!("{}.blob", object.hash))).unwrap();
@@ -287,7 +289,7 @@ fn concurrent_v2_openers_leave_a_single_complete_schema() {
         "{outcomes:?}"
     );
     let final_open = SqliteWorkspaceRepository.open(&root).unwrap();
-    assert_eq!(final_open.schema_version, 3);
+    assert_eq!(final_open.schema_version, 4);
     assert_eq!(final_open.current_generation.as_str(), GENERATION);
     let db = Connection::open(root.join("series.sqlite3")).unwrap();
     let tables: i64 = db
@@ -297,5 +299,5 @@ fn concurrent_v2_openers_leave_a_single_complete_schema() {
             |row| row.get(0),
         )
         .unwrap();
-    assert_eq!(tables, 9);
+    assert_eq!(tables, 10);
 }

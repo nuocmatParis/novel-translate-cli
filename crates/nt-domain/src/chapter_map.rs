@@ -2,6 +2,8 @@
 
 use crate::source_range::{SourceBlock, SourceBlockId};
 
+pub mod edit;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CoverageDomain {
     MainFlow,

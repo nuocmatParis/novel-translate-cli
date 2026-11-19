@@ -228,7 +228,7 @@ fn import_reopens_complete_state_blob_refs_and_read_snapshot_after_default_chang
             .open(&workspace.root)
             .unwrap()
             .schema_version,
-        3
+        4
     );
 }
 

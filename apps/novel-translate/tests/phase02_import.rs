@@ -100,7 +100,7 @@ fn cli_creates_and_reopens_a_unicode_spaced_workspace_with_matching_metadata() {
     assert_eq!(created_json["command"], "workspace create");
     assert_eq!(created_json["state"], "complete");
     assert_eq!(created_json["scope"]["kind"], "workspace");
-    assert_eq!(created_json["result"]["schema_version"], 3);
+    assert_eq!(created_json["result"]["schema_version"], 4);
     assert_eq!(created_json["result"]["current_generation"], "g0");
     assert_eq!(
         created_json["result"]["series_id"].as_str().unwrap().len(),

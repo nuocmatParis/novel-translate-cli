@@ -32,7 +32,7 @@ impl VolumeImportRepository for SqliteGenerationWriter {
         let fingerprint = fingerprint_import(&request);
         let (reply, receiver) = mpsc::sync_channel(1);
         match self.inner.sender.try_send(WriterMessage::CommitImport {
-            request,
+            request: Box::new(request),
             fingerprint,
             reply,
         }) {
@@ -170,7 +170,17 @@ fn commit_with_hook(
             resources,
             default_delta,
         } => {
-            import::read_volume_with_budget(&preflight, series, &current, volume_id, &mut budget)?;
+            if request.registration().is_some() {
+                import::check_registration(&preflight, series, &current, volume_id, state.mode)?;
+            } else {
+                import::read_volume_with_budget(
+                    &preflight,
+                    series,
+                    &current,
+                    volume_id,
+                    &mut budget,
+                )?;
+            }
             (
                 Some(volume_id),
                 Some(VolumeState::Imported(state.clone())),
@@ -288,7 +298,9 @@ fn commit_with_hook(
     if current_generation(&transaction, series)? != current {
         return Err(GenerationCommitError::StaleGeneration.into());
     }
-    if let Some(volume) = volume {
+    if let Some(volume) = volume
+        && request.registration().is_none()
+    {
         import::read_volume_with_budget(&transaction, series, &current, volume, &mut budget)?;
     }
     let timestamp = super::super::now_utc_ms()?;
@@ -303,6 +315,10 @@ fn commit_with_hook(
     }
     hook(CommitStage::AfterReferences)?;
     if let (Some(volume), Some(state)) = (volume, &state) {
+        if let Some(registration) = request.registration() {
+            import::check_registration(&transaction, series, &current, volume, state.mode())?;
+            import::register_volume(&transaction, series, volume, timestamp, registration)?;
+        }
         match state {
             VolumeState::Unimported { mode } => {
                 transaction.execute(
@@ -361,6 +377,19 @@ fn commit_with_hook(
                     resource.canonical_path, resource.object.hash.to_hex(),
                     i64::try_from(resource.object.byte_len).map_err(|_| ImportWriteError::ResourceLimit)?,
                     resource.source_relative_path]).map_err(sql)?;
+        }
+        if request.registration().is_some() {
+            transaction
+                .execute(
+                    "INSERT INTO cp06_volume_registrations (series_id, volume_id, generation_id)
+                     VALUES (?1, ?2, ?3)",
+                    (
+                        series.as_str(),
+                        volume.as_str(),
+                        request.generation_id().as_str(),
+                    ),
+                )
+                .map_err(sql)?;
         }
     }
     if let Some(default) = default {
@@ -445,6 +474,13 @@ fn lookup_import(
         ImportOperation::SetSeriesDefault { mode } => (None, None, &[][..], Some(*mode)),
     };
     if let (Some(volume), Some(state)) = (volume, state) {
+        import::verify_registration_replay(
+            connection,
+            series,
+            volume,
+            &result.generation_id,
+            request.registration(),
+        )?;
         let previous = import::read_volume_with_budget(
             connection,
             series,
@@ -483,7 +519,11 @@ pub(super) fn fingerprint_import(request: &VolumeImportWriteRequest) -> [u8; 32]
             default_delta,
             ..
         } => (
-            b"nt-cp05-import-v1".as_slice(),
+            if request.registration().is_some() {
+                b"nt-cp06-registration-v1".as_slice()
+            } else {
+                b"nt-cp05-import-v1".as_slice()
+            },
             Some(volume_id),
             Some(*state.payload.object.hash.as_bytes()),
             default_delta.map_or(0, mode_byte),
@@ -525,6 +565,16 @@ pub(super) fn fingerprint_import(request: &VolumeImportWriteRequest) -> [u8; 32]
     for object in request.objects() {
         hash.update(object.hash.as_bytes());
         hash.update(object.byte_len.to_be_bytes());
+    }
+    if let Some(registration) = request.registration() {
+        field(
+            &mut hash,
+            registration
+                .display_title
+                .as_deref()
+                .unwrap_or_default()
+                .as_bytes(),
+        );
     }
     hash.finalize().into()
 }

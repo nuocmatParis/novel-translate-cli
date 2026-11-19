@@ -7,13 +7,17 @@ use serde_json::{Value, json};
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
+#[path = "cli_import.rs"]
+mod volume;
+pub(crate) use volume::run as run_volume_command;
+
 #[derive(Debug, Parser)]
 #[command(
     name = "novel-translate-cli",
     bin_name = "novel-translate-cli",
     version = env!("CARGO_PKG_VERSION"),
     about = "CLI và TUI nền tảng cho Novel Translate",
-    after_help = "Commands:\n  workspace create <path>\n  workspace open <path>"
+    after_help = "Commands:\n  workspace create <path>\n  workspace open <path>\n  import <epub> --volume <id> --workspace <path>\n  scope set --volume <id> --content all-text|story --workspace <path>"
 )]
 struct Arguments {
     /// Yêu cầu kết quả máy đọc cho lệnh.
@@ -31,6 +35,7 @@ pub(crate) enum Decision {
     Version(String),
     LaunchTui,
     Workspace(WorkspaceCommand),
+    Volume(volume::VolumeCommand),
     Failure(CliFailure),
 }
 
@@ -143,6 +148,9 @@ pub(crate) fn parse(args: Vec<OsString>) -> Decision {
         .is_some_and(|token| *token == OsStr::new("workspace"))
     {
         return parse_workspace_command(&tokens, json_requested);
+    }
+    if let Some(decision) = volume::parse(&tokens, json_requested) {
+        return decision;
     }
     if tokens.iter().any(|token| token.to_str().is_none())
         || tokens
