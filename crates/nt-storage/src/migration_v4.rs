@@ -76,11 +76,10 @@ fn migrate_with_hook(
     after_staging: impl FnOnce() -> Result<(), WorkspaceError>,
     after_ddl: impl FnOnce() -> Result<(), WorkspaceError>,
 ) -> Result<(), WorkspaceError> {
-    // Compare the version on this same connection inside the final write
-    // transaction. Any intervening commit, including a change outside the
-    // generation writer, invalidates the backup.
-    let data_version = pragma(connection, "data_version")?;
-    let before = validate_database(connection)?;
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(map_sqlite_error)?;
+    let before = validate_database(&transaction)?;
     if before.schema_version == 4 {
         return Ok(());
     }
@@ -89,14 +88,7 @@ fn migrate_with_hook(
     }
     let backup_root = create_private_directory(root, "migration-backup")?;
     let backup_path = backup_root.join("series.sqlite3");
-    connection
-        .execute(
-            "VACUUM INTO ?1",
-            [backup_path
-                .to_str()
-                .ok_or(WorkspaceError::UnsupportedFilesystem)?],
-        )
-        .map_err(map_sqlite_error)?;
+    super::create_migration_backup(&transaction, &backup_path)?;
     let backup = open_candidate(&backup_path)?;
     let saved = validate_database(&backup)?;
     ensure_same_workspace(&before, &saved)?;
@@ -128,29 +120,12 @@ fn migrate_with_hook(
     let staged = staged?;
     after_staging()?;
 
-    let transaction = connection
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(map_sqlite_error)?;
-    let version = pragma(&transaction, "user_version")?;
-    if version == 4 {
-        transaction.commit().map_err(map_sqlite_error)?;
-        return validate_database(connection).map(|_| ());
-    }
-    if version != 3 || pragma(&transaction, "data_version")? != data_version {
-        return Err(WorkspaceError::Busy);
-    }
     apply_m004(&transaction)?;
     after_ddl()?;
     let ready = validate_database(&transaction)?;
     ensure_same_workspace(&staged, &ready)?;
     transaction.commit().map_err(map_sqlite_error)?;
     validate_database(connection).map(|_| ())
-}
-
-fn pragma(connection: &Connection, name: &str) -> Result<i64, WorkspaceError> {
-    connection
-        .pragma_query_value(None, name, |row| row.get(0))
-        .map_err(map_sqlite_error)
 }
 
 fn open_candidate(path: &Path) -> Result<Connection, WorkspaceError> {
@@ -282,4 +257,223 @@ fn object_reference(
         hash: ObjectHash::parse(&hash).map_err(|_| WorkspaceError::CorruptWorkspace)?,
         byte_len: u64::try_from(length).map_err(|_| WorkspaceError::CorruptWorkspace)?,
     })
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use std::cell::Cell;
+    use std::path::PathBuf;
+
+    use nt_application::generation::GenerationRepository;
+    use nt_application::object_store::ImmutableObjectStore;
+    use nt_application::workspace::{WorkspaceRepository, create_workspace};
+    use nt_domain::workspace::{GenerationId, GenerationWriteRequest, OperationId};
+
+    use super::{Connection, OpenFlags, WorkspaceError, fs, hash_file, migrate_with_hook};
+    use crate::{FileObjectStore, SqliteGenerationWriter, SqliteWorkspaceRepository};
+
+    struct Fixture(PathBuf);
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn m004_rollback_preserves_the_old_snapshot_and_verified_backup_before_retry() {
+        let parent =
+            std::env::temp_dir().join(format!("nt-cp07-m004-rollback-{}", std::process::id()));
+        fs::create_dir(&parent).unwrap();
+        let fixture = Fixture(parent);
+        let root = fixture.0.join("series");
+        let metadata = create_workspace(&SqliteWorkspaceRepository, &root).unwrap();
+        assert_eq!(metadata.schema_version, 4);
+
+        let content = b"schema three object fixture";
+        let store = FileObjectStore::new(&root).unwrap();
+        let object = store.put(&mut &content[..]).unwrap();
+        let hash = object.hash;
+        let generation = GenerationId::parse("33333333333333333333333333333333").unwrap();
+        let writer = SqliteGenerationWriter::open(&root).unwrap();
+        writer
+            .commit_generation(
+                GenerationWriteRequest::new(
+                    OperationId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
+                    metadata.current_generation,
+                    generation.clone(),
+                    vec![object],
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        drop(writer);
+
+        let mut database = Connection::open(root.join("series.sqlite3")).unwrap();
+        database
+            .execute_batch(
+                "BEGIN IMMEDIATE;
+             DROP TABLE cp06_volume_registrations;
+             PRAGMA user_version = 3;
+             COMMIT;",
+            )
+            .unwrap();
+        let staged = Cell::new(false);
+        let after_ddl = Cell::new(false);
+        assert_eq!(
+            migrate_with_hook(
+                &root,
+                &mut database,
+                || {
+                    staged.set(true);
+                    Ok(())
+                },
+                || {
+                    after_ddl.set(true);
+                    Err(WorkspaceError::StorageFailure)
+                },
+            ),
+            Err(WorkspaceError::StorageFailure),
+        );
+        assert!(staged.get() && after_ddl.get());
+        assert_generation_and_schema(&database, &generation, 3);
+        let table: i64 = database
+            .query_row(
+                "SELECT count(*) FROM sqlite_schema WHERE name = 'cp06_volume_registrations'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(table, 0);
+        drop(database);
+
+        let entries = fs::read_dir(&root)
+            .unwrap()
+            .map(Result::unwrap)
+            .collect::<Vec<_>>();
+        let backups = entries
+            .iter()
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".nt-migration-backup-")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(backups.len(), 1);
+        assert!(!entries.iter().any(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".nt-migration-stage-")
+        }));
+        let backup_root = backups[0].path();
+        let backup_db = Connection::open_with_flags(
+            backup_root.join("series.sqlite3"),
+            OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+        assert_generation_and_schema(&backup_db, &generation, 3);
+        let backup_store = FileObjectStore::new(&backup_root).unwrap();
+        let mut backup_content = Vec::new();
+        std::io::Read::read_to_end(
+            &mut backup_store.open_verified(hash).unwrap(),
+            &mut backup_content,
+        )
+        .unwrap();
+        assert_eq!(backup_content, content);
+        drop(backup_db);
+
+        let backup_path = backup_root.join("series.sqlite3");
+        let (digest, length) = hash_file(&backup_path).unwrap();
+        let manifest = fs::read_to_string(backup_root.join("manifest.sha256")).unwrap();
+        assert_eq!(
+            manifest,
+            format!(
+                "{digest}  {length}  series.sqlite3\n{hash}  {}  objects/{hash}.blob\n",
+                content.len(),
+            )
+        );
+
+        for (name, object_bytes) in [
+            ("restore-missing-object", None),
+            ("restore-wrong-hash", Some(vec![b'x'; content.len()])),
+        ] {
+            let restore_root = fixture.0.join(name);
+            let objects = restore_root.join("objects");
+            fs::create_dir_all(&objects).unwrap();
+            let restore_path = restore_root.join("series.sqlite3");
+            fs::copy(&backup_path, &restore_path).unwrap();
+            // The offline backup uses DELETE journaling. A restored workspace uses WAL.
+            let restored = Connection::open(&restore_path).unwrap();
+            restored.pragma_update(None, "journal_mode", "WAL").unwrap();
+            drop(restored);
+            if let Some(bytes) = object_bytes {
+                fs::write(objects.join(format!("{hash}.blob")), bytes).unwrap();
+            }
+
+            assert_eq!(
+                SqliteWorkspaceRepository.open(&restore_root),
+                Err(WorkspaceError::CorruptWorkspace),
+                "{name}",
+            );
+            let restore_db =
+                Connection::open_with_flags(&restore_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+                    .unwrap();
+            assert_generation_and_schema(&restore_db, &generation, 3);
+            assert!(
+                !restore_db
+                    .prepare(
+                        "SELECT name FROM sqlite_schema WHERE name = 'cp06_volume_registrations'"
+                    )
+                    .unwrap()
+                    .exists([])
+                    .unwrap()
+            );
+        }
+
+        let upgraded = SqliteWorkspaceRepository.open(&root).unwrap();
+        assert_eq!(upgraded.schema_version, 4);
+        assert_eq!(upgraded.current_generation, generation);
+        let mut after_retry = Vec::new();
+        std::io::Read::read_to_end(&mut store.open_verified(hash).unwrap(), &mut after_retry)
+            .unwrap();
+        assert_eq!(after_retry, content);
+    }
+
+    fn assert_generation_and_schema(
+        connection: &Connection,
+        generation: &GenerationId,
+        schema: i64,
+    ) {
+        let version: i64 = connection
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, schema);
+        let current: String = connection
+            .query_row(
+                "SELECT generation_id FROM current_generation WHERE singleton = 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(current, generation.as_str());
+        let integrity: String = connection
+            .pragma_query_value(None, "integrity_check", |r| r.get(0))
+            .unwrap();
+        assert_eq!(integrity, "ok");
+        assert!(
+            !connection
+                .prepare("PRAGMA foreign_key_check")
+                .unwrap()
+                .exists([])
+                .unwrap()
+        );
+        let references: i64 = connection
+            .query_row("SELECT count(*) FROM generation_object_refs", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(references, 1);
+    }
 }

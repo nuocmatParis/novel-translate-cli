@@ -1,13 +1,13 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
+use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread;
 
-use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use nt_application::workspace::{WorkspaceError, WorkspaceMetadata};
 
-use crate::WorkspaceCommands;
 use crate::input::EventLayer;
+use crate::{FolderPickerError, WorkspaceCommands};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum WorkspaceOperation {
@@ -15,40 +15,83 @@ enum WorkspaceOperation {
     Open,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FormControl {
+    Choose,
+    Confirm,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OverviewAction {
+    Import,
+    Create,
+    Open,
+}
+
+impl From<WorkspaceOperation> for OverviewAction {
+    fn from(operation: WorkspaceOperation) -> Self {
+        match operation {
+            WorkspaceOperation::Create => Self::Create,
+            WorkspaceOperation::Open => Self::Open,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum FormStatus {
     Idle,
     Editing(WorkspaceOperation),
+    Choosing {
+        operation: WorkspaceOperation,
+        request_id: u64,
+    },
     Pending {
         operation: WorkspaceOperation,
         request_id: u64,
     },
-    Complete {
-        operation: WorkspaceOperation,
-        metadata: WorkspaceMetadata,
-    },
+    Complete,
     Failed {
         operation: WorkspaceOperation,
         error: WorkspaceError,
     },
 }
 
+enum Reply {
+    Folder {
+        request_id: u64,
+        result: Result<Option<PathBuf>, FolderPickerError>,
+    },
+    Workspace {
+        request_id: u64,
+        path: PathBuf,
+        result: Result<WorkspaceMetadata, WorkspaceError>,
+    },
+}
+
 pub(crate) struct WorkspaceForm {
     commands: Option<Arc<dyn WorkspaceCommands>>,
-    current_workspace: Option<WorkspaceMetadata>,
-    opened: Option<(u64, PathBuf)>,
+    opened: Option<(u64, PathBuf, WorkspaceMetadata)>,
     status: FormStatus,
-    path: String,
+    path: Option<PathBuf>,
+    chooser_error: Option<FolderPickerError>,
+    panel_focus: bool,
+    entry: OverviewAction,
+    import_available: bool,
+    control: FormControl,
     next_request_id: u64,
-    result_sender: SyncSender<(u64, Result<WorkspaceMetadata, WorkspaceError>)>,
-    result_receiver: Receiver<(u64, Result<WorkspaceMetadata, WorkspaceError>)>,
+    result_sender: SyncSender<Reply>,
+    result_receiver: Receiver<Reply>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkspaceFormSnapshot {
     status: FormStatus,
     current_workspace: Option<WorkspaceMetadata>,
-    path: String,
+    path: Option<PathBuf>,
+    chooser_error: Option<FolderPickerError>,
+    panel_focus: bool,
+    entry: OverviewAction,
+    control: FormControl,
 }
 
 impl WorkspaceForm {
@@ -56,92 +99,199 @@ impl WorkspaceForm {
         let (result_sender, result_receiver) = mpsc::sync_channel(1);
         Self {
             commands,
-            current_workspace: None,
             opened: None,
             status: FormStatus::Idle,
-            path: String::new(),
+            path: None,
+            chooser_error: None,
+            panel_focus: false,
+            entry: OverviewAction::Create,
+            import_available: false,
+            control: FormControl::Choose,
             next_request_id: 1,
             result_sender,
             result_receiver,
         }
     }
 
+    pub(crate) fn available(&self) -> bool {
+        self.commands.is_some()
+    }
+
+    pub(crate) fn set_panel_focus(&mut self, focused: bool, import_available: bool) {
+        if (focused && !self.panel_focus && !self.is_active_form())
+            || self.import_available != import_available
+        {
+            self.entry = if import_available {
+                OverviewAction::Import
+            } else {
+                OverviewAction::Create
+            };
+        }
+        self.panel_focus = focused;
+        self.import_available = import_available;
+    }
+
+    pub(crate) fn focus_import(&mut self) {
+        self.entry = OverviewAction::Import;
+    }
+
+    pub(crate) fn import_focused(&self) -> bool {
+        self.panel_focus && self.entry == OverviewAction::Import
+    }
+
+    pub(crate) fn opened(&self) -> Option<(u64, &Path, &WorkspaceMetadata)> {
+        self.opened
+            .as_ref()
+            .map(|(epoch, path, metadata)| (*epoch, path.as_path(), metadata))
+    }
+
+    pub(crate) fn route_left(&mut self) {
+        if matches!(
+            self.status,
+            FormStatus::Choosing { .. } | FormStatus::Editing(_) | FormStatus::Failed { .. }
+        ) {
+            self.dismiss();
+        }
+    }
+
+    pub(crate) fn is_active_form(&self) -> bool {
+        matches!(
+            self.status,
+            FormStatus::Editing(_)
+                | FormStatus::Choosing { .. }
+                | FormStatus::Pending { .. }
+                | FormStatus::Failed { .. }
+        )
+    }
+
     pub(crate) fn poll_result(&mut self) -> bool {
         let mut changed = false;
-        loop {
-            match self.result_receiver.try_recv() {
-                Ok((request_id, result)) => {
-                    let operation = match self.status {
-                        FormStatus::Pending {
-                            operation,
-                            request_id: active_id,
-                        } if active_id == request_id => operation,
-                        _ => continue,
-                    };
-                    self.status = match result {
-                        Ok(metadata) => {
-                            self.current_workspace = Some(metadata.clone());
-                            self.opened = Some((request_id, PathBuf::from(&self.path)));
-                            FormStatus::Complete {
-                                operation,
-                                metadata,
-                            }
-                        }
-                        Err(error) => FormStatus::Failed { operation, error },
-                    };
-                    changed = true;
+        while let Ok(reply) = self.result_receiver.try_recv() {
+            changed |= self.apply_reply(reply);
+        }
+        changed
+    }
+
+    fn apply_reply(&mut self, reply: Reply) -> bool {
+        match (reply, &self.status) {
+            (
+                Reply::Folder { request_id, result },
+                FormStatus::Choosing {
+                    operation,
+                    request_id: active_id,
+                },
+            ) if request_id == *active_id => {
+                let operation = *operation;
+                match result {
+                    Ok(Some(path)) => {
+                        self.path = Some(path);
+                        self.control = FormControl::Confirm;
+                    }
+                    Ok(None) => {}
+                    Err(error) => self.chooser_error = Some(error),
                 }
-                Err(TryRecvError::Empty | TryRecvError::Disconnected) => return changed,
+                self.status = FormStatus::Editing(operation);
+                true
             }
+            (
+                Reply::Workspace {
+                    request_id,
+                    path,
+                    result,
+                },
+                FormStatus::Pending {
+                    operation,
+                    request_id: active_id,
+                },
+            ) if request_id == *active_id => {
+                let operation = *operation;
+                self.status = match result {
+                    Ok(metadata) => {
+                        self.opened = Some((request_id, path, metadata));
+                        if self.import_available {
+                            self.focus_import();
+                        }
+                        FormStatus::Complete
+                    }
+                    Err(error) => FormStatus::Failed { operation, error },
+                };
+                true
+            }
+            _ => false,
         }
     }
 
     pub(crate) fn snapshot(&self) -> WorkspaceFormSnapshot {
         WorkspaceFormSnapshot {
             status: self.status.clone(),
-            current_workspace: self.current_workspace.clone(),
+            current_workspace: self
+                .opened
+                .as_ref()
+                .map(|(_, _, metadata)| metadata.clone()),
             path: self.path.clone(),
+            chooser_error: self.chooser_error,
+            panel_focus: self.panel_focus,
+            entry: self.entry,
+            control: self.control,
         }
     }
 
-    pub(crate) fn opened(&self) -> Option<(u64, &std::path::Path, &WorkspaceMetadata)> {
-        let (epoch, path) = self.opened.as_ref()?;
-        Some((*epoch, path, self.current_workspace.as_ref()?))
-    }
-
-    pub(crate) fn is_active_form(&self) -> bool {
-        matches!(
-            self.status,
-            FormStatus::Editing(_) | FormStatus::Pending { .. } | FormStatus::Failed { .. }
-        )
+    fn request_id(&mut self) -> u64 {
+        let request = self.next_request_id;
+        self.next_request_id = self.next_request_id.wrapping_add(1).max(1);
+        request
     }
 
     fn begin(&mut self, operation: WorkspaceOperation) {
-        self.path.clear();
+        self.entry = operation.into();
+        self.path = None;
+        self.chooser_error = None;
+        self.control = FormControl::Choose;
         self.status = FormStatus::Editing(operation);
     }
 
-    fn submit(&mut self, operation: WorkspaceOperation) {
-        if self.path.is_empty() {
-            self.status = FormStatus::Failed {
-                operation,
-                error: WorkspaceError::InvalidPath,
-            };
-            return;
-        }
+    fn dismiss(&mut self) {
+        self.path = None;
+        self.chooser_error = None;
+        self.status = FormStatus::Idle;
+    }
 
+    fn choose(&mut self, operation: WorkspaceOperation) {
         let Some(commands) = self.commands.as_ref().map(Arc::clone) else {
             return;
         };
-        let request_id = self.next_request_id;
-        self.next_request_id = self.next_request_id.wrapping_add(1).max(1);
-        let path = PathBuf::from(&self.path);
+        let request_id = self.request_id();
+        let sender = self.result_sender.clone();
+        self.chooser_error = None;
+        self.control = FormControl::Choose;
+        self.status = FormStatus::Choosing {
+            operation,
+            request_id,
+        };
+        let spawn = thread::Builder::new()
+            .name("nt-workspace-folder-picker".to_owned())
+            .spawn(move || {
+                let result = commands.choose_workspace_folder();
+                let _ = sender.send(Reply::Folder { request_id, result });
+            });
+        if spawn.is_err() {
+            self.status = FormStatus::Editing(operation);
+            self.chooser_error = Some(FolderPickerError::Unavailable);
+        }
+    }
+
+    fn submit(&mut self, operation: WorkspaceOperation) {
+        let (Some(path), Some(commands)) =
+            (self.path.clone(), self.commands.as_ref().map(Arc::clone))
+        else {
+            return;
+        };
+        let request_id = self.request_id();
         let sender = self.result_sender.clone();
         self.status = FormStatus::Pending {
             operation,
             request_id,
         };
-
         let spawn = thread::Builder::new()
             .name("nt-workspace-form".to_owned())
             .spawn(move || {
@@ -149,7 +299,11 @@ impl WorkspaceForm {
                     WorkspaceOperation::Create => commands.create_workspace(&path),
                     WorkspaceOperation::Open => commands.open_workspace(&path),
                 };
-                let _ = sender.send((request_id, result));
+                let _ = sender.send(Reply::Workspace {
+                    request_id,
+                    path,
+                    result,
+                });
             });
         if spawn.is_err() {
             self.status = FormStatus::Failed {
@@ -159,79 +313,120 @@ impl WorkspaceForm {
         }
     }
 
-    fn append_character(&mut self, character: char) {
-        self.path.push(character);
+    pub(crate) fn click(&mut self, page_row: u16, column: u16) -> bool {
+        if !self.available() {
+            return false;
+        }
+        let op = match self.status {
+            FormStatus::Editing(operation) | FormStatus::Failed { operation, .. } => operation,
+            FormStatus::Idle | FormStatus::Complete => {
+                match page_row {
+                    0 if in_button(column, "Tạo workspace") => {
+                        self.begin(WorkspaceOperation::Create)
+                    }
+                    1 if in_button(column, "Mở workspace") => {
+                        self.begin(WorkspaceOperation::Open)
+                    }
+                    _ => return false,
+                }
+                return true;
+            }
+            FormStatus::Choosing { .. } | FormStatus::Pending { .. } => return false,
+        };
+        match page_row {
+            0 if in_button(column, op.browse()) => self.choose(op),
+            1 if self.path.is_some() && in_button(column, op.verb()) => self.submit(op),
+            _ => return false,
+        }
+        true
     }
 
-    fn remove_last_grapheme(&mut self) {
-        use unicode_segmentation::UnicodeSegmentation;
-
-        if let Some((byte_index, _)) = self.path.grapheme_indices(true).next_back() {
-            self.path.truncate(byte_index);
+    fn form_key(&mut self, key: KeyEvent, operation: WorkspaceOperation) {
+        match key.code {
+            KeyCode::Esc => self.dismiss(),
+            KeyCode::Tab | KeyCode::BackTab | KeyCode::Up | KeyCode::Down
+                if self.path.is_some() =>
+            {
+                self.control = match self.control {
+                    FormControl::Choose => FormControl::Confirm,
+                    FormControl::Confirm => FormControl::Choose,
+                };
+            }
+            KeyCode::Enter if self.control == FormControl::Choose => self.choose(operation),
+            KeyCode::Enter => self.submit(operation),
+            _ => {}
         }
     }
 }
 
 impl EventLayer for WorkspaceForm {
     fn handle_event(&mut self, event: &Event) -> bool {
-        let is_editing = matches!(self.status, FormStatus::Editing(_));
-        let is_pending = matches!(self.status, FormStatus::Pending { .. });
-        if is_editing || is_pending {
-            let Event::Key(key) = event else {
-                return true;
-            };
-            if is_pending {
-                return true;
-            }
-
-            let FormStatus::Editing(operation) = self.status else {
-                return true;
-            };
-            match (key.code, key.kind) {
-                (KeyCode::Esc, KeyEventKind::Press) if no_modifiers(key.modifiers) => {
-                    self.path.clear();
-                    self.status = FormStatus::Idle;
-                }
-                (KeyCode::Enter, KeyEventKind::Press) if no_modifiers(key.modifiers) => {
-                    self.submit(operation);
-                }
-                (KeyCode::Backspace, KeyEventKind::Press | KeyEventKind::Repeat)
-                    if no_modifiers(key.modifiers) =>
-                {
-                    self.remove_last_grapheme();
-                }
-                (KeyCode::Char(character), KeyEventKind::Press | KeyEventKind::Repeat)
-                    if no_modifiers(key.modifiers) =>
-                {
-                    self.append_character(character);
-                }
-                _ => {}
-            }
-            return true;
-        }
-
-        let Event::Key(key) = event else {
-            return false;
+        let active = self.is_active_form();
+        let Event::Key(key) = *event else {
+            return active;
         };
-        if matches!(self.status, FormStatus::Failed { .. })
-            && key.code == KeyCode::Esc
-            && key.kind == KeyEventKind::Press
-            && no_modifiers(key.modifiers)
+        if key.kind != KeyEventKind::Press
+            || !(key.modifiers == KeyModifiers::NONE || key.modifiers == KeyModifiers::SHIFT)
         {
-            self.path.clear();
-            self.status = FormStatus::Idle;
-            return true;
+            return active;
         }
-        if key.kind != KeyEventKind::Press || !no_modifiers(key.modifiers) {
+        if matches!(key.code, KeyCode::PageUp | KeyCode::PageDown) {
             return false;
         }
-        match key.code {
-            KeyCode::Char('c' | 'C') if self.commands.is_some() => {
-                self.begin(WorkspaceOperation::Create);
+        if matches!(self.status, FormStatus::Pending { .. }) {
+            return true;
+        }
+
+        let shortcut = match key.code {
+            KeyCode::Char('c' | 'C') => Some(WorkspaceOperation::Create),
+            KeyCode::Char('o' | 'O') => Some(WorkspaceOperation::Open),
+            _ => None,
+        };
+        if self.available()
+            && let Some(operation) = shortcut
+        {
+            self.begin(operation);
+            return true;
+        }
+        match self.status {
+            FormStatus::Choosing { operation, .. } => {
+                if key.code == KeyCode::Esc {
+                    self.status = FormStatus::Editing(operation);
+                }
                 true
             }
-            KeyCode::Char('o' | 'O') if self.commands.is_some() => {
-                self.begin(WorkspaceOperation::Open);
+            FormStatus::Editing(operation) | FormStatus::Failed { operation, .. } => {
+                self.form_key(key, operation);
+                true
+            }
+            _ if self.panel_focus && self.available() => {
+                let control = match (key.code, key.modifiers) {
+                    (KeyCode::Tab, KeyModifiers::SHIFT) => KeyCode::BackTab,
+                    (code, _) => code,
+                };
+                match (control, self.entry) {
+                    (KeyCode::Enter, OverviewAction::Create) => {
+                        self.begin(WorkspaceOperation::Create);
+                    }
+                    (KeyCode::Enter, OverviewAction::Open) => {
+                        self.begin(WorkspaceOperation::Open);
+                    }
+                    (KeyCode::Tab | KeyCode::Right | KeyCode::Down, OverviewAction::Import) => {
+                        self.entry = OverviewAction::Create;
+                    }
+                    (KeyCode::Tab | KeyCode::Right | KeyCode::Down, OverviewAction::Create) => {
+                        self.entry = OverviewAction::Open;
+                    }
+                    (KeyCode::BackTab | KeyCode::Left | KeyCode::Up, OverviewAction::Open) => {
+                        self.entry = OverviewAction::Create;
+                    }
+                    (KeyCode::BackTab | KeyCode::Left | KeyCode::Up, OverviewAction::Create)
+                        if self.import_available =>
+                    {
+                        self.focus_import();
+                    }
+                    _ => return false,
+                }
                 true
             }
             _ => false,
@@ -242,93 +437,135 @@ impl EventLayer for WorkspaceForm {
 impl WorkspaceFormSnapshot {
     pub(crate) fn heading(&self) -> &'static str {
         match self.status {
-            FormStatus::Idle | FormStatus::Editing(_) | FormStatus::Pending { .. } => {
-                "Chưa mở workspace"
+            FormStatus::Editing(operation) | FormStatus::Choosing { operation, .. } => {
+                operation.title()
             }
-            FormStatus::Complete { .. } => "Workspace đã sẵn sàng",
+            FormStatus::Pending { operation, .. } => operation.title(),
             FormStatus::Failed { operation, .. } => match operation {
                 WorkspaceOperation::Create => "Không thể tạo workspace",
                 WorkspaceOperation::Open => "Không thể mở workspace",
             },
+            _ if self.current_workspace.is_some() => "Workspace đã sẵn sàng",
+            _ => "Chưa mở workspace",
         }
     }
 
     pub(crate) fn body(&self) -> String {
+        let active = active_workspace_message(self.current_workspace.as_ref());
         match &self.status {
-            FormStatus::Idle => format!(
-                "{}\nC: Tạo workspace · O: Mở workspace",
-                active_workspace_message(self.current_workspace.as_ref())
-            ),
-            FormStatus::Editing(operation) => format!(
-                "{}\n{} workspace\nĐường dẫn: {}_\nNhập đường dẫn Unicode · Enter: xác nhận · Esc: hủy",
-                active_workspace_message(self.current_workspace.as_ref()),
-                operation.verb(),
-                self.path
-            ),
-            FormStatus::Pending { operation, .. } => format!(
-                "{}\n{} workspace\nĐường dẫn: {}\nĐang xử lý; bàn phím vẫn hoạt động.",
-                active_workspace_message(self.current_workspace.as_ref()),
-                operation.verb(),
-                self.path
-            ),
-            FormStatus::Complete {
-                operation,
-                metadata,
-            } => format!(
-                "Đã {} workspace.\nSeries: {}\nSchema: {} · Generation: {}\nC: Tạo workspace · O: Mở workspace",
-                operation.past_tense(),
-                metadata.series.id.as_str(),
-                metadata.schema_version,
-                metadata.current_generation.as_str()
-            ),
-            FormStatus::Failed { error, .. } => format!(
-                "{}\n{}\nĐường dẫn: {}",
-                workspace_error_message(error),
-                active_workspace_message(self.current_workspace.as_ref()),
-                self.path
-            ),
+            FormStatus::Idle | FormStatus::Complete => {
+                format!("{}\n{active}", self.entry_buttons())
+            }
+            FormStatus::Choosing { operation, .. } => {
+                format!(
+                    "{}\nĐang mở hộp chọn thư mục…\n{}\n{active}",
+                    button(operation.browse(), true),
+                    self.selection()
+                )
+            }
+            FormStatus::Editing(operation) | FormStatus::Failed { operation, .. } => {
+                let mut body = button(operation.browse(), self.control == FormControl::Choose);
+                if self.path.is_some() {
+                    body.push_str(&format!(
+                        "\n{}",
+                        button(operation.verb(), self.control == FormControl::Confirm)
+                    ));
+                }
+                if let FormStatus::Failed { error, .. } = &self.status {
+                    body.push_str(&format!("\n{}", workspace_error_message(error)));
+                }
+                if let Some(error) = self.chooser_error {
+                    body.push_str(&format!("\n{}", picker_error_message(error)));
+                }
+                body.push_str(&format!("\n{}\n{active}", self.selection()));
+                body
+            }
+            FormStatus::Pending { operation, .. } => {
+                format!(
+                    "Đang {} workspace…\n{}\n{active}",
+                    operation.past_tense(),
+                    self.selection()
+                )
+            }
         }
     }
 
+    fn entry_buttons(&self) -> String {
+        format!(
+            "{}\n{}",
+            button(
+                "Tạo workspace",
+                self.panel_focus && self.entry == OverviewAction::Create,
+            ),
+            button(
+                "Mở workspace",
+                self.panel_focus && self.entry == OverviewAction::Open,
+            ),
+        )
+    }
+
+    fn selection(&self) -> String {
+        let Some(path) = &self.path else {
+            return "Chưa chọn thư mục.".to_owned();
+        };
+        let visible: String = path
+            .to_string_lossy()
+            .chars()
+            .filter(|c| !c.is_control())
+            .collect();
+        format!("Nơi đã chọn: {visible}")
+    }
+
     pub(crate) fn help_summary(&self) -> String {
-        match &self.status {
-            FormStatus::Idle => {
-                "Tổng quan: C tạo workspace, O mở workspace; nhập đường dẫn rồi nhấn Enter."
-                    .to_owned()
+        match self.status {
+            FormStatus::Idle | FormStatus::Complete => {
+                "Tổng quan: Tab đến Tạo hoặc Mở, nhấn Enter để vào form.".to_owned()
             }
-            FormStatus::Editing(operation) => format!(
-                "Đang {} workspace. Nhập đường dẫn Unicode rồi Enter để tiếp tục; Esc hủy.",
-                operation.verb().to_lowercase()
-            ),
+            FormStatus::Choosing { .. } => {
+                "Đang chọn thư mục. Hủy trong hộp chọn để quay lại form.".to_owned()
+            }
             FormStatus::Pending { operation, .. } => format!(
-                "Đang {} workspace ở tác vụ nền. Chờ kết quả; Esc đóng trợ giúp để xem trạng thái.",
-                operation.verb().to_lowercase()
-            ),
-            FormStatus::Complete { operation, .. } => format!(
-                "Đã {} workspace. C tạo workspace khác, O mở workspace khác.",
+                "Đang {} workspace ở tác vụ nền. Chờ kết quả.",
                 operation.past_tense()
             ),
-            FormStatus::Failed { operation, error } => format!(
-                "Không thể {} workspace. {} C hoặc O để thử thao tác khác; Esc đóng lỗi.",
-                operation.verb().to_lowercase(),
-                workspace_error_message(error)
-            ),
+            FormStatus::Editing(_) => {
+                "Chọn thư mục rồi dùng Tạo hoặc Mở để xác nhận. Tab đổi nút, Esc đóng form."
+                    .to_owned()
+            }
+            FormStatus::Failed { .. } => {
+                "Chọn lại thư mục hoặc thử lại. Tab đổi nút, Esc đóng lỗi.".to_owned()
+            }
         }
     }
 
     pub(crate) const fn footer_text(&self) -> &'static str {
         match self.status {
-            FormStatus::Idle | FormStatus::Complete { .. } => {
-                "C tạo · O mở · F1 trợ giúp · Tab thoát · Ctrl+C thoát"
+            FormStatus::Idle | FormStatus::Complete => {
+                "Tab chọn nút · Enter mở form · C tạo · O mở · F1 trợ giúp"
             }
-            FormStatus::Editing(_) => "Enter xác nhận · Esc hủy · F1 trợ giúp · Ctrl+C thoát",
+            FormStatus::Choosing { .. } => "Đang chọn thư mục · Esc hủy · F1 trợ giúp",
+            FormStatus::Editing(_) => "Tab đổi nút · Enter chọn · Esc đóng form · F1 trợ giúp",
+            FormStatus::Failed { .. } => "Tab đổi nút · Enter thử lại · Esc đóng lỗi · F1 trợ giúp",
             FormStatus::Pending { .. } => "Đang xử lý · F1 trợ giúp · Ctrl+C thoát",
-            FormStatus::Failed { .. } => "Esc đóng lỗi · C tạo · O mở · F1 trợ giúp · Ctrl+C thoát",
         }
     }
 }
 
 impl WorkspaceOperation {
+    const fn title(self) -> &'static str {
+        match self {
+            Self::Create => "Tạo workspace",
+            Self::Open => "Mở workspace",
+        }
+    }
+
+    const fn browse(self) -> &'static str {
+        match self {
+            Self::Create => "Chọn nơi lưu…",
+            Self::Open => "Chọn workspace…",
+        }
+    }
+
     const fn verb(self) -> &'static str {
         match self {
             Self::Create => "Tạo",
@@ -344,20 +581,36 @@ impl WorkspaceOperation {
     }
 }
 
+fn button(label: &str, focused: bool) -> String {
+    let marker = if focused { "› " } else { "  " };
+    format!("{marker}[{label}]")
+}
+
+fn in_button(column: u16, label: &str) -> bool {
+    usize::from(column) < label.chars().count() + 4
+}
+
 fn active_workspace_message(workspace: Option<&WorkspaceMetadata>) -> String {
     let Some(workspace) = workspace else {
         return "Chưa có workspace nào đang mở.".to_owned();
     };
     format!(
-        "Workspace đang mở · Series: {} · Schema: {} · Generation: {}",
+        "Workspace đang mở · Series {} · Schema {}",
         workspace.series.id.as_str(),
         workspace.schema_version,
-        workspace.current_generation.as_str()
     )
 }
 
-fn no_modifiers(modifiers: KeyModifiers) -> bool {
-    modifiers == KeyModifiers::NONE || modifiers == KeyModifiers::SHIFT
+fn picker_error_message(error: FolderPickerError) -> &'static str {
+    match error {
+        FolderPickerError::Busy => "Hãy đóng hộp chọn đang mở rồi thử lại.",
+        FolderPickerError::Unavailable => {
+            "Không mở được hộp chọn thư mục. Enter để thử lại hoặc Esc để trở về."
+        }
+        FolderPickerError::PermissionDenied => {
+            "Thiếu quyền chọn thư mục. Kiểm tra quyền rồi thử lại."
+        }
+    }
 }
 
 fn workspace_error_message(error: &WorkspaceError) -> &'static str {
@@ -384,318 +637,5 @@ fn workspace_error_message(error: &WorkspaceError) -> &'static str {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{FormStatus, WorkspaceForm, WorkspaceOperation};
-    use crate::WorkspaceCommands;
-    use crate::input::{EventLayer, UiAction, dispatch_event};
-    use crate::state::AppState;
-    use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-    use nt_application::workspace::{WorkspaceError, WorkspaceMetadata};
-    use std::path::{Path, PathBuf};
-    use std::sync::mpsc::{self, Receiver, SyncSender};
-    use std::sync::{Arc, Mutex};
-    use std::thread;
-    use std::time::{Duration, Instant};
-
-    struct FailingCommands;
-
-    impl WorkspaceCommands for FailingCommands {
-        fn create_workspace(&self, _path: &Path) -> Result<WorkspaceMetadata, WorkspaceError> {
-            Err(WorkspaceError::StorageFailure)
-        }
-
-        fn open_workspace(&self, _path: &Path) -> Result<WorkspaceMetadata, WorkspaceError> {
-            Err(WorkspaceError::StorageFailure)
-        }
-    }
-
-    struct BlockingCommands {
-        started: SyncSender<(WorkspaceOperation, PathBuf)>,
-        release: Arc<Mutex<Receiver<()>>>,
-    }
-
-    impl BlockingCommands {
-        fn call(
-            &self,
-            operation: WorkspaceOperation,
-            path: &Path,
-        ) -> Result<WorkspaceMetadata, WorkspaceError> {
-            self.started
-                .send((operation, path.to_path_buf()))
-                .expect("test receives the started operation");
-            self.release
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .recv_timeout(Duration::from_secs(3))
-                .expect("test releases the deliberately blocked operation");
-            Err(WorkspaceError::StorageFailure)
-        }
-    }
-
-    impl WorkspaceCommands for BlockingCommands {
-        fn create_workspace(&self, path: &Path) -> Result<WorkspaceMetadata, WorkspaceError> {
-            self.call(WorkspaceOperation::Create, path)
-        }
-
-        fn open_workspace(&self, path: &Path) -> Result<WorkspaceMetadata, WorkspaceError> {
-            self.call(WorkspaceOperation::Open, path)
-        }
-    }
-
-    fn key(code: KeyCode) -> Event {
-        Event::Key(KeyEvent::new_with_kind(
-            code,
-            KeyModifiers::NONE,
-            KeyEventKind::Press,
-        ))
-    }
-
-    fn type_text(form: &mut WorkspaceForm, text: &str) {
-        for character in text.chars() {
-            assert!(form.handle_event(&key(KeyCode::Char(character))));
-        }
-    }
-
-    #[test]
-    fn edit_captures_navigation_and_backspace_removes_a_whole_grapheme() {
-        let commands: Arc<dyn WorkspaceCommands> = Arc::new(FailingCommands);
-        let mut form = WorkspaceForm::new(Some(commands));
-        let mut state = AppState::default();
-
-        assert_eq!(
-            dispatch_event(&mut state, &key(KeyCode::Char('c')), None, Some(&mut form),),
-            UiAction::None
-        );
-        type_text(&mut form, "A e\u{301}");
-        assert!(form.handle_event(&key(KeyCode::Backspace)));
-        assert_eq!(form.path, "A ");
-
-        let selected = state.selected_screen();
-        assert_eq!(
-            dispatch_event(&mut state, &key(KeyCode::Down), None, Some(&mut form)),
-            UiAction::None
-        );
-        assert_eq!(state.selected_screen(), selected);
-        assert!(form.handle_event(&key(KeyCode::Esc)));
-        assert_eq!(form.status, FormStatus::Idle);
-        assert!(form.path.is_empty());
-    }
-
-    #[test]
-    fn empty_submission_fails_without_calling_the_workspace_service() {
-        let mut form = WorkspaceForm::new(Some(Arc::new(FailingCommands)));
-        assert!(form.handle_event(&key(KeyCode::Char('o'))));
-        assert!(form.handle_event(&key(KeyCode::Enter)));
-        assert_eq!(
-            form.status,
-            FormStatus::Failed {
-                operation: WorkspaceOperation::Open,
-                error: WorkspaceError::InvalidPath,
-            }
-        );
-    }
-
-    #[test]
-    fn failed_workspace_errors_show_recovery_and_visible_dismissal_actions() {
-        let mut form = WorkspaceForm::new(Some(Arc::new(FailingCommands)));
-        form.status = FormStatus::Failed {
-            operation: WorkspaceOperation::Open,
-            error: WorkspaceError::CorruptWorkspace,
-        };
-        form.path = "series_日本語 01".to_owned();
-        let snapshot = form.snapshot();
-        let body = snapshot.body();
-        assert!(body.contains("Khôi phục từ bản sao lưu đã kiểm chứng"));
-        assert!(body.contains("Giữ nguyên thư mục hiện tại"));
-        assert!(snapshot.footer_text().contains("Esc đóng lỗi"));
-        assert!(snapshot.help_summary().contains("Esc đóng lỗi"));
-
-        form.status = FormStatus::Failed {
-            operation: WorkspaceOperation::Open,
-            error: WorkspaceError::PermissionDenied,
-        };
-        let permission = form.snapshot();
-        assert!(
-            permission
-                .body()
-                .contains("Kiểm tra quyền truy cập tệp/thư mục")
-        );
-        assert!(permission.footer_text().contains("Esc đóng lỗi"));
-
-        form.status = FormStatus::Failed {
-            operation: WorkspaceOperation::Open,
-            error: WorkspaceError::Busy,
-        };
-        let busy = form.snapshot();
-        assert!(busy.body().contains("Đóng tiến trình khác rồi thử lại"));
-    }
-
-    #[test]
-    fn pending_workspace_help_describes_the_active_operation() {
-        let mut form = WorkspaceForm::new(Some(Arc::new(FailingCommands)));
-        form.status = FormStatus::Pending {
-            operation: WorkspaceOperation::Open,
-            request_id: 42,
-        };
-        let snapshot = form.snapshot();
-        let summary = snapshot.help_summary();
-        assert!(summary.contains("Đang mở workspace ở tác vụ nền"));
-        assert!(summary.contains("Chờ kết quả"));
-        assert!(!summary.contains("chưa khả dụng"));
-        assert!(snapshot.footer_text().contains("Đang xử lý"));
-    }
-
-    #[test]
-    fn overview_render_shows_recovery_help_and_dismissal_at_eighty_by_twenty_four() {
-        use crate::navigation::Screen;
-        use crate::rendering::render_with_workspace;
-        use crate::state::AppState;
-        use ratatui::buffer::Buffer;
-        use ratatui::layout::Rect;
-
-        fn rendered(state: &AppState, form: &WorkspaceForm) -> String {
-            let area = Rect::new(0, 0, 80, 24);
-            let mut buffer = Buffer::empty(area);
-            render_with_workspace(&mut buffer, area, state, &form.snapshot());
-            (0..area.height)
-                .map(|row| {
-                    (0..area.width)
-                        .map(|column| buffer[(column, row)].symbol())
-                        .collect::<String>()
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
-
-        let mut form = WorkspaceForm::new(Some(Arc::new(FailingCommands)));
-        form.status = FormStatus::Failed {
-            operation: WorkspaceOperation::Open,
-            error: WorkspaceError::CorruptWorkspace,
-        };
-        let state = AppState::default();
-        assert_eq!(state.current_screen(), Screen::Overview);
-        let frame = rendered(&state, &form);
-        let visible_words = frame.split_whitespace().collect::<Vec<_>>().join(" ");
-        assert!(visible_words.contains("Khôi phục"), "{visible_words}");
-        assert!(visible_words.contains("bản sao lưu"), "{visible_words}");
-        assert!(visible_words.contains("đã kiểm"), "{visible_words}");
-        assert!(visible_words.contains("chứng."), "{visible_words}");
-        assert!(frame.contains("Esc đóng lỗi"));
-
-        form.status = FormStatus::Pending {
-            operation: WorkspaceOperation::Open,
-            request_id: 7,
-        };
-        let mut state = AppState::default();
-        state.open_help();
-        let help = rendered(&state, &form);
-        assert!(help.contains("Đang mở workspace ở tác vụ nền"));
-        assert!(help.contains("Chờ kết quả"));
-        assert!(!help.contains("chưa khả dụng"));
-    }
-
-    #[test]
-    fn blocking_io_runs_off_the_event_loop_and_result_returns_to_its_request() {
-        let (started_sender, started_receiver) = mpsc::sync_channel(1);
-        let (release_sender, release_receiver) = mpsc::channel();
-        let commands = BlockingCommands {
-            started: started_sender,
-            release: Arc::new(Mutex::new(release_receiver)),
-        };
-        let mut form = WorkspaceForm::new(Some(Arc::new(commands)));
-        let expected_path = PathBuf::from("C:\\Manga\\異世界 01");
-
-        assert!(form.handle_event(&key(KeyCode::Char('c'))));
-        type_text(
-            &mut form,
-            expected_path.to_str().expect("test path is Unicode"),
-        );
-        assert!(form.handle_event(&key(KeyCode::Enter)));
-        assert!(matches!(form.status, FormStatus::Pending { .. }));
-        assert_eq!(
-            started_receiver
-                .recv_timeout(Duration::from_secs(1))
-                .expect("storage call begins on a worker"),
-            (WorkspaceOperation::Create, expected_path.clone())
-        );
-
-        let event_started = Instant::now();
-        assert!(form.handle_event(&key(KeyCode::Right)));
-        assert!(event_started.elapsed() < Duration::from_millis(100));
-        assert!(matches!(form.status, FormStatus::Pending { .. }));
-        assert_eq!(form.path, expected_path.to_string_lossy());
-
-        release_sender
-            .send(())
-            .expect("worker is waiting for release");
-        let deadline = Instant::now() + Duration::from_secs(2);
-        while !form.poll_result() {
-            assert!(Instant::now() < deadline, "worker result returns in time");
-            thread::sleep(Duration::from_millis(5));
-        }
-        assert!(matches!(
-            form.status,
-            FormStatus::Failed {
-                operation: WorkspaceOperation::Create,
-                error: WorkspaceError::StorageFailure,
-            }
-        ));
-        assert!(
-            form.snapshot()
-                .body()
-                .contains("Không thể lưu hoặc đọc workspace an toàn.")
-        );
-        assert!(form.handle_event(&key(KeyCode::Esc)));
-        assert_eq!(form.status, FormStatus::Idle);
-    }
-
-    #[test]
-    fn stale_result_does_not_replace_the_active_request() {
-        let mut form = WorkspaceForm::new(Some(Arc::new(FailingCommands)));
-        form.status = FormStatus::Pending {
-            operation: WorkspaceOperation::Open,
-            request_id: 9,
-        };
-        form.result_sender
-            .send((8, Err(WorkspaceError::NotFound)))
-            .expect("stale test result enters the channel");
-        assert!(!form.poll_result());
-        assert!(matches!(
-            form.status,
-            FormStatus::Pending { request_id: 9, .. }
-        ));
-
-        form.result_sender
-            .send((9, Err(WorkspaceError::StorageFailure)))
-            .expect("current test result enters the channel");
-        assert!(form.poll_result());
-        assert!(matches!(
-            form.status,
-            FormStatus::Failed {
-                operation: WorkspaceOperation::Open,
-                error: WorkspaceError::StorageFailure,
-            }
-        ));
-    }
-
-    #[test]
-    fn failed_open_keeps_the_requested_path_visible_for_recovery() {
-        let mut form = WorkspaceForm::new(Some(Arc::new(FailingCommands)));
-        form.path = "corrupt workspace fixture".to_owned();
-        form.status = FormStatus::Pending {
-            operation: WorkspaceOperation::Open,
-            request_id: 12,
-        };
-        form.result_sender
-            .send((12, Err(WorkspaceError::CorruptWorkspace)))
-            .expect("corrupt-open result enters the result channel");
-
-        assert!(form.poll_result());
-        assert_eq!(form.path, "corrupt workspace fixture");
-        assert!(
-            form.snapshot()
-                .body()
-                .contains("Đường dẫn: corrupt workspace fixture")
-        );
-    }
-}
+#[path = "workspace_folder_tests.rs"]
+mod tests;

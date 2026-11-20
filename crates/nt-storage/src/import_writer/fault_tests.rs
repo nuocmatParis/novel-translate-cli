@@ -334,3 +334,106 @@ fn import_process_exit_child() {
 }
 
 use std::io::Read;
+
+#[test]
+fn process_exit_after_commit_before_ack_reconciles_the_published_import() {
+    let fixture = Fixture::new();
+    let prepared = fixture.request();
+    let marker = fixture.base.join("committed-before-ack");
+    let child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "generation::writer::import_writer::fault_tests::after_commit_before_ack_child",
+            "--nocapture",
+        ])
+        .env("NT_PHASE02_ACK_ROOT", &fixture.root)
+        .env("NT_PHASE02_ACK_SERIES", fixture.series.as_str())
+        .env("NT_PHASE02_ACK_MARKER", &marker)
+        .output()
+        .unwrap();
+    assert_eq!(
+        child.status.code(),
+        Some(75),
+        "{}",
+        String::from_utf8_lossy(&child.stderr)
+    );
+    assert_eq!(fs::read(marker).unwrap(), b"committed-without-reply");
+
+    let reopened = SqliteWorkspaceRepository.open(&fixture.root).unwrap();
+    assert_eq!(reopened.current_generation.as_str(), FIRST);
+    let writer = SqliteGenerationWriter::open(&fixture.root).unwrap();
+    let acknowledgement = writer.reconcile_volume_import(&prepared).unwrap();
+    assert!(acknowledgement.replayed);
+    assert_eq!(acknowledgement.generation_id.as_str(), FIRST);
+
+    let mut reader = SqliteVolumeImportReader::open(&fixture.root).unwrap();
+    let current = reader.begin_snapshot().unwrap();
+    assert_eq!(current.generation_id().as_str(), FIRST);
+    let volume = VolumeId::parse(VOLUME).unwrap();
+    let stored = current.volume(&volume).unwrap();
+    let nt_domain::volume_import::VolumeState::Imported(imported) = stored.state else {
+        panic!("expected the committed import");
+    };
+    assert_eq!(imported.mapping_version, [0x44; 32]);
+    let mut payload = Vec::new();
+    current
+        .open_payload(&volume)
+        .unwrap()
+        .unwrap()
+        .read_to_end(&mut payload)
+        .unwrap();
+    assert_eq!(payload, PAYLOAD);
+    current.finish().unwrap();
+
+    let connection = Connection::open(fixture.root.join("series.sqlite3")).unwrap();
+    for (table, count) in [
+        ("generations", 2),
+        ("generation_operations", 1),
+        ("generation_object_refs", 2),
+    ] {
+        assert_eq!(
+            connection
+                .query_row(&format!("SELECT count(*) FROM {table}"), [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            count,
+        );
+    }
+    let integrity: String = connection
+        .query_row("PRAGMA integrity_check", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(integrity, "ok");
+}
+
+#[test]
+fn after_commit_before_ack_child() {
+    let Some(root) = std::env::var_os("NT_PHASE02_ACK_ROOT") else {
+        return;
+    };
+    let root = PathBuf::from(root);
+    let series = SeriesId::parse(std::env::var("NT_PHASE02_ACK_SERIES").unwrap()).unwrap();
+    let request = request(&root, &series);
+    let fingerprint = fingerprint_import(&request);
+    let store = FileObjectStore::new(&root).unwrap();
+    let mut connection = Connection::open(root.join("series.sqlite3")).unwrap();
+
+    // Exercise the same database transaction as the writer. The child exits
+    // after its commit and before it sends a reply to the waiting caller.
+    let committed = commit_with_hook(
+        &mut connection,
+        &store,
+        &series,
+        request,
+        fingerprint,
+        |_| Ok(()),
+    )
+    .unwrap();
+    assert_eq!(committed.generation_id.as_str(), FIRST);
+    assert!(!committed.replayed);
+    fs::write(
+        std::env::var_os("NT_PHASE02_ACK_MARKER").unwrap(),
+        b"committed-without-reply",
+    )
+    .unwrap();
+    std::process::exit(75);
+}

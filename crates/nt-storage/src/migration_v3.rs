@@ -161,28 +161,26 @@ fn migrate_with_hook(
     failpoint: Option<MigrationFailpoint>,
     after_staging: impl FnOnce() -> Result<(), WorkspaceError>,
 ) -> Result<(), WorkspaceError> {
-    let version: i64 = connection
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(map_sqlite_error)?;
+    let version: i64 = transaction
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(map_sqlite_error)?;
     if matches!(version, 3 | 4) {
-        return validate_database(connection).map(|_| ());
+        return validate_database(&transaction).map(|_| ());
     }
     if version != 2 {
         return Err(WorkspaceError::UnsupportedFormat);
     }
-    let before = validate_database(connection)?;
+    let before = validate_database(&transaction)?;
     let backup_directory = create_private_directory(root, "migration-backup")?;
     let stage_directory = create_private_directory(root, "migration-stage")?;
     let backup_path = backup_directory.join("series.sqlite3");
     let stage_path = stage_directory.join("series.sqlite3");
 
     let prepared = (|| {
-        let backup_name = backup_path
-            .to_str()
-            .ok_or(WorkspaceError::UnsupportedFilesystem)?;
-        connection
-            .execute("VACUUM INTO ?1", [backup_name])
-            .map_err(map_sqlite_error)?;
+        super::create_migration_backup(&transaction, &backup_path)?;
         let backup = Connection::open_with_flags(
             &backup_path,
             OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
@@ -241,17 +239,7 @@ fn migrate_with_hook(
         return Err(WorkspaceError::StorageFailure);
     }
     after_staging()?;
-    let transaction = connection
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(map_sqlite_error)?;
-    let version: i64 = transaction
-        .pragma_query_value(None, "user_version", |row| row.get(0))
-        .map_err(map_sqlite_error)?;
-    if matches!(version, 3 | 4) {
-        transaction.commit().map_err(map_sqlite_error)?;
-        return validate_database(connection).map(|_| ());
-    }
-    if version != 2 || v2_content_digest(&transaction)? != expected_digest {
+    if v2_content_digest(&transaction)? != expected_digest {
         return Err(WorkspaceError::Busy);
     }
     apply_m003(&transaction)?;
@@ -493,7 +481,7 @@ mod tests {
     }
 
     #[test]
-    fn volume_change_after_backup_is_detected_before_ddl_even_if_current_is_unchanged() {
+    fn volume_write_is_blocked_after_staging_until_the_upgrade_commits() {
         let temp = Temp::new();
         let root = temp.0.join("series");
         let mut connection = v2(&root);
@@ -503,18 +491,30 @@ mod tests {
         let changed = root.join("series.sqlite3");
         let result = migrate_with_hook(&root, &mut connection, None, || {
             let other = Connection::open(changed).unwrap();
-            other.execute(
-                "INSERT INTO volumes(series_id, volume_id, display_title, created_at_utc_ms) VALUES (?1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'new', 1)",
-                [&series],
-            ).unwrap();
+            other
+                .busy_timeout(std::time::Duration::from_millis(25))
+                .unwrap();
+            let error = other
+                .execute(
+                    "INSERT INTO volumes(series_id, volume_id, display_title, created_at_utc_ms) VALUES (?1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'new', 1)",
+                    [&series],
+                )
+                .unwrap_err();
+            assert_eq!(
+                error.sqlite_error_code(),
+                Some(rusqlite::ErrorCode::DatabaseBusy)
+            );
             Ok(())
         });
-        assert_eq!(result, Err(WorkspaceError::Busy));
-        assert_v2(&connection);
+        assert_eq!(result, Ok(()));
+        let version: i64 = connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 3);
         let volumes: i64 = connection
             .query_row("SELECT count(*) FROM volumes", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(volumes, 1);
+        assert_eq!(volumes, 0);
     }
 
     #[test]

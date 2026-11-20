@@ -65,7 +65,7 @@ pub fn run_shell() -> Result<(), TuiError> {
 
 pub fn run_shell_with_workspace(commands: Arc<dyn WorkspaceCommands>) -> Result<(), TuiError> {
     let driver =
-        CrosstermTerminal::new(false).map_err(|_| TuiError::new(TuiErrorKind::EventRead))?;
+        CrosstermTerminal::new(true).map_err(|_| TuiError::new(TuiErrorKind::EventRead))?;
     run_shell_with_driver_and_workspace(driver, Some(commands), None)
 }
 
@@ -116,21 +116,35 @@ fn run_shell_with_driver_and_workspace<D: TerminalDriver>(
                 state.set_scroll_offset(0);
                 state.set_scroll_anchor_byte(0);
             }
-            state.set_workspace_controls(
-                imports.available(state.current_screen()) && !overview_form_active,
-            );
+            let overview = state.current_screen() == crate::navigation::Screen::Overview;
+            let workspace_visible = overview && workspace_form.available();
+            let imports_available = imports.available(state.current_screen());
+            let imports_visible = imports_available && !overview_form_active;
+            state.set_workspace_controls(workspace_visible || imports_visible);
             imports.set_screen(state.current_screen());
-            let volume_body = state
-                .has_workspace_controls()
-                .then(|| imports.body(state.focus_region() == FocusRegion::Workspace));
+            let controls_focused = state.focus_region() == FocusRegion::Workspace;
+            workspace_form
+                .set_panel_focus(overview && controls_focused, overview && imports_available);
+            let workspace = workspace_form.snapshot();
+            let workspace_body = workspace_visible.then(|| workspace.body());
+            let volume_body = imports_visible.then(|| {
+                if let Some(workspace_body) = workspace_body.as_deref() {
+                    imports.body_with_workspace_actions(
+                        workspace_form.import_focused(),
+                        workspace_body,
+                    )
+                } else {
+                    imports.body(controls_focused)
+                }
+            });
+            let body = volume_body.as_deref().or(workspace_body.as_deref());
             let area = driver.terminal_area().map_err(|_| TuiErrorKind::Render)?;
             if redraw_needed
                 || rendered_area != Some(area)
                 || workspace_changed
                 || import_state_changed
             {
-                refresh_scroll_layout(&mut state, area, volume_body.as_deref());
-                let workspace = workspace_form.snapshot();
+                refresh_scroll_layout(&mut state, area, body);
                 let result = match &volume_body {
                     Some(body) => driver.draw_shell_with_volumes(area, &state, &workspace, body),
                     None => driver.draw_shell_with_workspace(area, &state, &workspace),
@@ -154,29 +168,49 @@ fn run_shell_with_driver_and_workspace<D: TerminalDriver>(
                 return Ok(());
             }
             let area = driver.terminal_area().map_err(|_| TuiErrorKind::Render)?;
-            refresh_scroll_layout(&mut state, area, volume_body.as_deref());
+            refresh_scroll_layout(&mut state, area, body);
             if controls_hidden_in_last_frame && state.terminal_size_supported() {
                 redraw_needed = true;
                 continue;
             }
             if let Event::Mouse(mouse) = &event
                 && mouse.kind == MouseEventKind::Down(MouseButton::Left)
-                && state.has_workspace_controls()
-                && crate::rendering::picker_hit(area, &state, mouse.column, mouse.row)
             {
-                state.focus_workspace();
-                imports.open_picker();
-                redraw_needed = true;
-                continue;
+                let workspace_clicked = workspace_visible
+                    && crate::rendering::workspace_control_position(
+                        area,
+                        &state,
+                        mouse.column,
+                        mouse.row,
+                    )
+                    .is_some_and(|(row, column)| {
+                        row.checked_sub(u16::from(imports_visible))
+                            .is_some_and(|row| workspace_form.click(row, column))
+                    });
+                if workspace_clicked {
+                    state.focus_workspace();
+                    state.set_scroll_offset(0);
+                    state.set_scroll_anchor_byte(0);
+                    redraw_needed = true;
+                    continue;
+                }
+                if imports_visible
+                    && crate::rendering::picker_hit(area, &state, mouse.column, mouse.row)
+                {
+                    state.focus_workspace();
+                    workspace_form.focus_import();
+                    imports.open_picker();
+                    redraw_needed = true;
+                    continue;
+                }
             }
             let screen_before_dispatch = state.current_screen();
             let scroll_offset_before_dispatch = state.scroll_offset();
             let focus_before_dispatch = state.focus_region();
             let editing_before_dispatch = imports.editing();
-            let overview = screen_before_dispatch == crate::navigation::Screen::Overview;
             let mut controls = WorkspaceControls {
-                form: overview.then_some(&mut workspace_form),
-                imports: (state.focus_region() == FocusRegion::Workspace).then_some(&mut imports),
+                form: workspace_visible.then_some(&mut workspace_form),
+                imports: (imports_visible && controls_focused).then_some(&mut imports),
             };
             match dispatch_event(&mut state, &event, None, Some(&mut controls)) {
                 UiAction::Shutdown => return Ok(()),
@@ -189,16 +223,19 @@ fn run_shell_with_driver_and_workspace<D: TerminalDriver>(
                 state.set_scroll_offset(0);
                 state.set_scroll_anchor_byte(0);
             }
-            if imports.editing() != editing_before_dispatch {
+            if imports.editing() != editing_before_dispatch
+                || workspace_form.is_active_form() != overview_form_active
+            {
                 state.set_scroll_offset(0);
                 state.set_scroll_anchor_byte(0);
             }
-            refresh_scroll_layout(&mut state, area, volume_body.as_deref());
+            refresh_scroll_layout(&mut state, area, body);
             if state.current_screen() != screen_before_dispatch {
+                workspace_form.route_left();
                 let offset = crate::rendering::scroll_offset_for_anchor(area, &state, None);
                 state.set_scroll_offset(offset);
             } else if state.scroll_offset() != scroll_offset_before_dispatch {
-                crate::rendering::capture_scroll_anchor(&mut state, area, volume_body.as_deref());
+                crate::rendering::capture_scroll_anchor(&mut state, area, body);
             }
             redraw_needed = true;
         }
@@ -879,8 +916,8 @@ mod tests {
         let rendered = buffer_text(&buffer, area);
 
         assert!(rendered.contains("Chưa mở workspace"));
-        assert!(rendered.contains("C: Tạo workspace"));
-        assert!(rendered.contains("O: Mở workspace"));
+        assert!(rendered.contains("[Tạo workspace]"));
+        assert!(rendered.contains("[Mở workspace]"));
     }
     #[test]
     fn buffer_renderer_never_emits_a_cursor_restore_command() {
