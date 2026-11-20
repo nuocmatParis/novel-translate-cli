@@ -551,12 +551,20 @@ impl ImportScreen {
     }
 
     pub(crate) fn body(&self, focused: bool) -> String {
+        self.body_with_workspace_actions(focused, "")
+    }
+
+    pub(crate) fn body_with_workspace_actions(&self, focused: bool, actions: &str) -> String {
         let marker = if focused && self.picker_focused {
             "› "
         } else {
             "  "
         };
         let mut body = format!("{marker}[{PICKER_LABEL}]");
+        if !actions.is_empty() {
+            body.push('\n');
+            body.push_str(actions);
+        }
         if !self.notice.is_empty() {
             body.push_str(&format!("\n{}", self.notice));
         }

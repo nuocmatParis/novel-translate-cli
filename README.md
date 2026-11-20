@@ -16,3 +16,17 @@
 ## Trạng thái phát triển
 
 Dự án đang được viết lại bằng Rust.
+
+## Thử bản Rust trên Windows
+
+Mở `novel-translate-cli.exe` trên Windows x64. Tại **Tổng quan**, chọn **Tạo workspace** hoặc **Mở workspace**, duyệt đến thư mục trong hộp thoại Windows, kiểm tra đường dẫn hiển thị rồi xác nhận **Tạo** hoặc **Mở**.
+
+Khi workspace đã mở, chọn **＋ Nhập tập truyện** ở **Tổng quan** hoặc **Tập và chương**. Workspace lưu cơ sở dữ liệu `series.sqlite3` và tệp nguồn trong thư mục gốc đã chọn. Sao lưu cả thư mục để giữ đủ dữ liệu.
+
+Từ thư mục chứa bản chạy, có thể làm các bước tương ứng bằng PowerShell.
+
+```powershell
+.\novel-translate-cli.exe workspace create ".\workspace-thu"
+.\novel-translate-cli.exe workspace open ".\workspace-thu"
+.\novel-translate-cli.exe import ".\tap-01.epub" --workspace ".\workspace-thu" --volume 11111111111111111111111111111111
+```

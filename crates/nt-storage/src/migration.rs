@@ -82,7 +82,10 @@ fn migrate_v1_to_v2_with_failpoint(
     connection: &mut Connection,
     failpoint: Option<MigrationFailpoint>,
 ) -> Result<(), WorkspaceError> {
-    let current_version: i64 = connection
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(map_sqlite_error)?;
+    let current_version: i64 = transaction
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(map_sqlite_error)?;
     if (i64::from(M002_VERSION)..=i64::from(SCHEMA_VERSION)).contains(&current_version) {
@@ -92,19 +95,14 @@ fn migrate_v1_to_v2_with_failpoint(
         return Err(WorkspaceError::UnsupportedFormat);
     }
 
-    let before = validate_database(connection)?;
+    let before = validate_database(&transaction)?;
     let backup_directory = create_private_directory(root, "migration-backup")?;
     let staging_directory = create_private_directory(root, "migration-stage")?;
     let backup_path = backup_directory.join("series.sqlite3");
     let staging_path = staging_directory.join("series.sqlite3");
 
     let staged = (|| {
-        let backup_name = backup_path
-            .to_str()
-            .ok_or(WorkspaceError::UnsupportedFilesystem)?;
-        connection
-            .execute("VACUUM INTO ?1", [backup_name])
-            .map_err(map_sqlite_error)?;
+        create_migration_backup(&transaction, &backup_path)?;
 
         let backup = Connection::open_with_flags(
             &backup_path,
@@ -141,19 +139,6 @@ fn migrate_v1_to_v2_with_failpoint(
         return Err(WorkspaceError::StorageFailure);
     }
 
-    let transaction = connection
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(map_sqlite_error)?;
-    let version_inside_transaction: i64 = transaction
-        .pragma_query_value(None, "user_version", |row| row.get(0))
-        .map_err(map_sqlite_error)?;
-    if (i64::from(M002_VERSION)..=i64::from(SCHEMA_VERSION)).contains(&version_inside_transaction) {
-        transaction.commit().map_err(map_sqlite_error)?;
-        return Ok(());
-    }
-    if version_inside_transaction != 1 {
-        return Err(WorkspaceError::UnsupportedFormat);
-    }
     apply_m002(&transaction)?;
     if failpoint == Some(MigrationFailpoint::AfterSourceDdl) {
         return Err(WorkspaceError::StorageFailure);
@@ -164,6 +149,27 @@ fn migrate_v1_to_v2_with_failpoint(
 
     let final_metadata = validate_database(connection)?;
     ensure_same_workspace(&staged_metadata, &final_metadata)
+}
+
+fn create_migration_backup(
+    transaction: &Transaction<'_>,
+    destination: &Path,
+) -> Result<(), WorkspaceError> {
+    // The source transaction holds the writer lock. VACUUM needs a separate
+    // connection outside that transaction, and WAL lets it read the source.
+    let database = transaction.path().ok_or(WorkspaceError::StorageFailure)?;
+    let destination = destination
+        .to_str()
+        .ok_or(WorkspaceError::UnsupportedFilesystem)?;
+    let reader = Connection::open_with_flags(
+        database,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(map_sqlite_error)?;
+    reader
+        .execute("VACUUM INTO ?1", [destination])
+        .map_err(map_sqlite_error)?;
+    Ok(())
 }
 
 fn create_private_directory(root: &Path, role: &str) -> Result<PathBuf, WorkspaceError> {
@@ -198,7 +204,10 @@ mod tests {
     use nt_application::workspace::WorkspaceError;
     use rusqlite::Connection;
 
-    use super::{MigrationFailpoint, migrate_v1_to_v2_with_failpoint};
+    use super::{
+        MigrationFailpoint, migrate_v1_to_v2, migrate_v1_to_v2_with_failpoint, migrate_v2_to_v3,
+        migrate_v3_to_v4,
+    };
     use crate::workspace::{APPLICATION_ID, SCHEMA_V1};
 
     static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -270,6 +279,43 @@ mod tests {
         connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("read schema version")
+    }
+
+    #[test]
+    fn an_active_writer_prevents_backup_before_every_schema_upgrade() {
+        let temp = TestDirectory::new();
+        let mut connection = create_v1(temp.path());
+        connection
+            .busy_timeout(std::time::Duration::from_millis(25))
+            .unwrap();
+        let writer = Connection::open(temp.path().join("series.sqlite3")).unwrap();
+        let migrations = [migrate_v1_to_v2, migrate_v2_to_v3, migrate_v3_to_v4];
+        for (version, migrate) in (1..=3).zip(migrations) {
+            let backup_count = || {
+                fs::read_dir(temp.path())
+                    .unwrap()
+                    .map(Result::unwrap)
+                    .filter(|entry| {
+                        entry
+                            .file_name()
+                            .to_string_lossy()
+                            .starts_with(".nt-migration-backup-")
+                    })
+                    .count()
+            };
+            let before = backup_count();
+            writer.execute_batch("BEGIN IMMEDIATE").unwrap();
+            assert_eq!(
+                migrate(temp.path(), &mut connection),
+                Err(WorkspaceError::Busy),
+                "schema {version}",
+            );
+            assert_eq!(user_version(&connection), version);
+            assert_eq!(backup_count(), before);
+            writer.execute_batch("ROLLBACK").unwrap();
+            migrate(temp.path(), &mut connection).unwrap();
+            assert_eq!(user_version(&connection), version + 1);
+        }
     }
 
     #[test]

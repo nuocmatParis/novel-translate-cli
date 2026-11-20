@@ -24,4 +24,4 @@ pub use import_commands::{
 };
 pub use terminal::run_shell;
 pub use terminal::{run_shell_with_volumes, run_shell_with_workspace};
-pub use workspace::WorkspaceCommands;
+pub use workspace::{FolderPickerError, WorkspaceCommands};

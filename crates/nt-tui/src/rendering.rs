@@ -127,17 +127,26 @@ pub(crate) fn scroll_metrics(area: Rect, state: &AppState, volumes: Option<&str>
     scroll_metrics_for_body(body_area, body)
 }
 
-pub(crate) fn picker_hit(area: Rect, state: &AppState, column: u16, row: u16) -> bool {
-    if !terminal_size_supported(area) || state.scroll_offset() != 0 || state.help_open() {
-        return false;
+pub(crate) fn workspace_control_position(
+    area: Rect,
+    state: &AppState,
+    column: u16,
+    row: u16,
+) -> Option<(u16, u16)> {
+    if !terminal_size_supported(area) || state.help_open() {
+        return None;
     }
     let inner = Block::default()
         .borders(Borders::ALL)
         .inner(body_area(area));
+    let x = column.checked_sub(inner.x)?;
+    let y = row.checked_sub(inner.y)?;
+    (x < inner.width && y < inner.height).then(|| (y.saturating_add(state.scroll_offset()), x))
+}
+
+pub(crate) fn picker_hit(area: Rect, state: &AppState, column: u16, row: u16) -> bool {
     let width = format!("  [{}]", crate::screens::PICKER_LABEL).cell_width() as u16;
-    inner.height > 0
-        && row == inner.y
-        && (inner.x..inner.x.saturating_add(width.min(inner.width))).contains(&column)
+    workspace_control_position(area, state, column, row).is_some_and(|(y, x)| y == 0 && x < width)
 }
 
 pub(crate) fn capture_scroll_anchor(state: &mut AppState, area: Rect, volumes: Option<&str>) {
