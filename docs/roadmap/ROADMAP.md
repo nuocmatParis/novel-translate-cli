@@ -42,7 +42,7 @@ Nghiệm thu đầy đủ: M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9
 Code song song: mở từng task qua checkpoint trong PARALLEL_TASKS.json
 ```
 
-Đầu vào cột milestone ở §2 là nền hoàn chỉnh để nghiệm thu; điều kiện bắt đầu task sớm được ghi tại §4/§11 từng phase và graph v2. Có 64 checkpoint, mỗi checkpoint 1–3 task; không chờ hết phase mới push. Các chat dùng worktree riêng, một điều phối PLAN/shared files và B gpt-6.1-sol/max riêng theo [quy trình](PARALLEL_EXECUTION.md).
+Đầu vào cột milestone ở §2 là nền hoàn chỉnh để nghiệm thu; điều kiện bắt đầu task sớm được ghi tại §4/§11 từng phase và graph v2. Sau bổ sung [Phase 02 §17](phases/PHASE-02.md#p02-ux-followup) ngày 21/11/2026, graph có 117 task/66 checkpoint từ nền 112/64, mỗi checkpoint 1–3 task; không chờ hết phase mới push. M2 nhận T18/CP09 và nghiệm thu Master; các cổng nhận sớm CP05/CP06 giữ nguyên. Các chat dùng worktree riêng, một điều phối PLAN/shared files và B gpt-6.1-sol/max riêng theo [quy trình](PARALLEL_EXECUTION.md).
 
 M0-01 chốt đủ nền tảng, CLI/terminal/API và chiến lược test. M0-02 chốt storage, identity/offset và generation/migration. Phase 01 có thể bắt đầu khi M0-01 đủ; không cần đợi quyết định IPC/export của các phase sau.
 
@@ -246,7 +246,7 @@ Nhờ Research đề xuất phân loại được nối ở P06 sau import; impo
 
 ## 8. Phạm vi hiện đã thực hiện
 
-Phase 00 M0-r03 và Phase 01 M1-r01 đã B Đạt trên Windows; [review M1](evidence/phase-01/M1.review-r01.md). PR #1 đã merge; commit/baseline và giới hạn đối chiếu ghi trong [PLAN](../../PLAN.md). Lịch song song v2 cho Phase 02–09 đã được soạn, chưa thực hiện code; trạng thái review kế hoạch ở PLAN. Giữ task IDs/AC/TC và bài tự test, chia lại 64 checkpoint 1–3 task và mở dependency từng phần. Bản v0.1 chưa triển khai được lưu lịch sử.
+Phase 00 M0-r03 và Phase 01 M1-r01 đã B Đạt trên Windows; [review M1](evidence/phase-01/M1.review-r01.md). PR #1 đã merge; commit/baseline và giới hạn đối chiếu ghi trong [PLAN](../../PLAN.md). Phase 02 T01–T13 và CP01–CP07 đã công bố theo [sổ trạng thái](phases/PHASE-02.md#161-sổ-trạng-thái), đang nhận T14–T18/CP08–CP09 sau khi Master dùng thử; M2 chưa đóng. Lịch hiện hành 117 task/66 checkpoint giữ các task IDs/AC/TC, bài tự test và cổng mở từng phần, không suy các phase khác đã thực hiện. Bản v0.1 và nền lịch v2 112/64 giữ trong lịch sử/evidence.
 
 Bước tiếp là giao chat P02 và P09 chuẩn bị theo kế hoạch đã B Đạt, rồi mở P03/P07 theo P02-CP05. Dọn Go dần theo [PLAN §8](../../PLAN.md#go-retirement-plan), trên phạm vi được điều phối cấp và có review bản sau dọn; dữ liệu người dùng giữ nguyên. GO-FINAL là việc bắt buộc để đạt mục tiêu chỉ Rust. Lượt lập kế hoạch chưa xóa code; merge checkpoint vào rewrite/rust theo ủy quyền ngày 14/11/2026 và [quy trình merge](MERGE_WORKFLOW.md); publish release vẫn do người dùng quyết định.
 

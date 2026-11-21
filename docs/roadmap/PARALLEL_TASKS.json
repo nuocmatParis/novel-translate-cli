@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "date": "2026-11-12",
+  "date": "2026-11-21",
   "baseline": {
     "milestone": "M1-r01",
     "review": "docs/roadmap/evidence/phase-01/M1.review-r01.md",
@@ -13,7 +13,7 @@
     "M1"
   ],
   "milestones": {
-    "M2": "P02-T13",
+    "M2": "P02-T18",
     "M3": "P03-T15",
     "M4": "P04-T13",
     "M5": "P05-T16",
@@ -277,6 +277,100 @@
         "P03-T01",
         "P03-T02",
         "P03-T03"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T14",
+      "phase": "P02",
+      "title": "Di chuyển trong terminal mà màn hình không nháy",
+      "dependencies": [
+        "P02-T13"
+      ],
+      "checks": [
+        "V-07",
+        "V-10"
+      ],
+      "checkpoint": "P02-CP08",
+      "parallelExamples": [
+        "P03-T01",
+        "P07-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T15",
+      "phase": "P02",
+      "title": "Chữ nằm trong ô nhập và người dùng thấy rõ nút đang chọn",
+      "dependencies": [
+        "P02-T14"
+      ],
+      "checks": [
+        "V-07",
+        "V-10"
+      ],
+      "checkpoint": "P02-CP08",
+      "parallelExamples": [
+        "P03-T01",
+        "P07-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T16",
+      "phase": "P02",
+      "title": "Đọc được cả mục lục, vị trí ảnh và lý do cần xem lại",
+      "dependencies": [
+        "P02-T15"
+      ],
+      "checks": [
+        "V-05",
+        "V-06"
+      ],
+      "checkpoint": "P02-CP09",
+      "parallelExamples": [
+        "P03-T01",
+        "P07-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T17",
+      "phase": "P02",
+      "title": "Hiện kết quả nhập, cây chương và nguyên tác có ảnh",
+      "dependencies": [
+        "P02-T16"
+      ],
+      "checks": [
+        "V-06",
+        "V-07",
+        "V-10"
+      ],
+      "checkpoint": "P02-CP09",
+      "parallelExamples": [
+        "P03-T01",
+        "P07-T02"
+      ],
+      "status": "Chưa bắt đầu"
+    },
+    {
+      "id": "P02-T18",
+      "phase": "P02",
+      "title": "Mở hoặc lưu ảnh gốc bằng tên dễ tìm",
+      "dependencies": [
+        "P02-T17"
+      ],
+      "checks": [
+        "V-02",
+        "V-06",
+        "V-07",
+        "V-10",
+        "V-00"
+      ],
+      "checkpoint": "P02-CP09",
+      "parallelExamples": [
+        "P03-T01",
+        "P07-T02"
       ],
       "status": "Chưa bắt đầu"
     },
@@ -2510,7 +2604,7 @@
         "P02-CP05",
         "P02-CP06"
       ],
-      "final": true,
+      "final": false,
       "checks": [
         {
           "task": "P02-T13",
@@ -2520,6 +2614,83 @@
             "V-00"
           ],
           "scope": "Toàn bộ AC/TC bắt buộc của P02-T13; phần V gắn với các ca đó."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P02-CP08",
+      "phase": "P02",
+      "title": "Vẽ màn hình và nhập liệu",
+      "tasks": [
+        "P02-T14",
+        "P02-T15"
+      ],
+      "dependencies": [
+        "P02-CP07"
+      ],
+      "final": false,
+      "checks": [
+        {
+          "task": "P02-T14",
+          "groups": [
+            "V-07",
+            "V-10"
+          ],
+          "scope": "Toàn bộ AC/TC của P02-T14. TC14–15, vòng đời terminal và chooser thật trên Windows. V-00 trên bản ghép CP08."
+        },
+        {
+          "task": "P02-T15",
+          "groups": [
+            "V-07",
+            "V-10"
+          ],
+          "scope": "Toàn bộ AC/TC của P02-T15. TC14–15, vòng đời terminal và chooser thật trên Windows. V-00 trên bản ghép CP08."
+        }
+      ],
+      "status": "Chưa mở"
+    },
+    {
+      "id": "P02-CP09",
+      "phase": "P02",
+      "title": "Duyệt chương và ảnh sau khi nhập",
+      "tasks": [
+        "P02-T16",
+        "P02-T17",
+        "P02-T18"
+      ],
+      "dependencies": [
+        "P02-CP08"
+      ],
+      "final": true,
+      "checks": [
+        {
+          "task": "P02-T16",
+          "groups": [
+            "V-05",
+            "V-06"
+          ],
+          "scope": "Toàn bộ AC/TC của P02-T16. TC16–18, nhập và mở lại EPUB 2/3, UT06–09 trên Windows. V-00, B M2 và nghiệm thu của Master theo §17."
+        },
+        {
+          "task": "P02-T17",
+          "groups": [
+            "V-06",
+            "V-07",
+            "V-10"
+          ],
+          "scope": "Toàn bộ AC/TC của P02-T17. TC16–18, nhập và mở lại EPUB 2/3, UT06–09 trên Windows. V-00, B M2 và nghiệm thu của Master theo §17."
+        },
+        {
+          "task": "P02-T18",
+          "groups": [
+            "V-02",
+            "V-06",
+            "V-07",
+            "V-10",
+            "V-00"
+          ],
+          "scope": "Toàn bộ AC/TC của P02-T18. TC16–18, nhập và mở lại EPUB 2/3, UT06–09 trên Windows. V-00, B M2 và nghiệm thu của Master theo §17."
         }
       ],
       "status": "Chưa mở"

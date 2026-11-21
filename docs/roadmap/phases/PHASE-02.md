@@ -1,12 +1,12 @@
 # PHASE 02 — LƯU TRỮ WORKSPACE VÀ NHẬP EPUB
 
-> Lịch thực thi v2 · 12/11/2026.
+> Lịch thực thi v2 · 12/11/2026, đã nhận bổ sung T14–T18/CP08–CP09 tại §17 ngày 21/11/2026.
 
 > Lịch task song song và checkpoint commit/push tại [mục 10](#p02-schedule). Áp dụng [quy tắc giao việc](../PARALLEL_EXECUTION.md#dispatch) và [review/Git checkpoint](../PARALLEL_EXECUTION.md#git-checkpoint). Phiếu giao việc ghim version/hash đầu vào khi triển khai.
 
 > Ủy quyền 14/11/2026: [quy trình merge và khóa phần đã nghiệm thu](../MERGE_WORKFLOW.md) áp dụng từ lượt Git tiếp theo. CP code ngoài phase chỉ được nhận sau merge và hậu kiểm; CP docs-only nhận manifest/review. AC, dependency và trạng thái không đổi.
 
-> **Kế hoạch triển khai v0.3 · 09/11/2026 · Chưa bắt đầu.** Bản này nhận hợp đồng từ [M0-02-r01](../evidence/phase-00/M0-02.review-r01.md) và chuẩn bị công việc sau M1. Căn cứ là yêu cầu đã chốt và thiết kế. Thay đổi trong code cũ hoặc spike chỉ dùng để nhận diện phần cần bảo toàn và đối chiếu bằng chứng kỹ thuật.
+> **Căn cứ lịch sử — kế hoạch v0.3 · 09/11/2026, trạng thái ban đầu Chưa bắt đầu.** Bản kế hoạch nhận hợp đồng từ [M0-02-r01](../evidence/phase-00/M0-02.review-r01.md) và chuẩn bị công việc sau M1. Trạng thái hiện hành ở §1, §16 và §17; dòng lịch sử này không thay kết quả công bố. Căn cứ là yêu cầu đã chốt và thiết kế. Thay đổi trong code cũ hoặc spike chỉ dùng để nhận diện phần cần bảo toàn và đối chiếu bằng chứng kỹ thuật.
 >
 > Giữ truy vết Q02 đã bổ sung ở P00-T01-r02 sau finding F02. T08/AC08/TC08 kiểm quyết định phân loại theo **vị trí, hash EPUB và phiên bản mapping**, gồm hai ca thay từng căn cứ riêng.
 
@@ -16,10 +16,10 @@
 |---|---|
 | ID / milestone | P02 / M2 |
 | Tên | Lưu trữ workspace và nhập EPUB |
-| Trạng thái | Kế hoạch triển khai đã chi tiết. Code và kiểm thử Phase 02 chưa bắt đầu. |
-| Đầu vào chính | M0-02 đã Đạt trên Windows. Chờ M1 của Phase 01. |
+| Trạng thái | T01–T13 cùng bổ sung T11 đã công bố tại CP01–CP07. Đang tiếp nhận góp ý T14–T18 ở CP08/CP09; M2 chờ Master nghiệm thu. |
+| Đầu vào chính | M0-02 và M1 đã Đạt trên Windows; M1 merge `9fb133078a126171186a0a12a1359443746363d8` nằm trong CP07 `8edd20965ef7c4c5d156b54fdf5c3e36b6bcd3a2` đã hậu kiểm. |
 | Gói giao diện | UI-02 tạo/mở workspace và UI-03 nhập EPUB, cây nguồn, phân loại, chỉnh mapping |
-| Phân rã | 5 gói việc, 13 task. Mỗi task có bước nhỏ và ca kiểm chứng riêng. |
+| Phân rã | 18 task, 9 checkpoint: 5 gói/13 task ban đầu và 5 task bổ sung ở §17. Mỗi task có bước nhỏ và ca kiểm chứng riêng. |
 | Nhánh khi triển khai | Nhánh theo phạm vi `feature/...`, PR Rust vào `rewrite/rust`. |
 | Vai trò | Model A triển khai và bàn giao. Model B khác review độc lập trên đúng candidate. |
 
@@ -29,7 +29,7 @@ Xem [roadmap chung](../ROADMAP.md) và [phạm vi tại Bước 9](../../desgin/
 
 Sau M2, người dùng tạo hoặc mở một bộ, nhập EPUB cho một tập, xem cây nội dung và lưu chỉnh sửa phạm vi hoặc ranh giới chương. Mở lại bộ phải thấy đúng nguồn, phạm vi và lịch sử đã lưu. Phase 03 nhận bản đồ nguồn ổn định để gắn revision vào đúng đoạn.
 
-1. Tạo một workspace Rust mới bằng CLI rồi mở cùng bộ trong TUI.
+1. Tạo workspace bằng TUI qua chọn thư mục, mở lại bằng TUI; kiểm CLI create/open với workspace thử và cùng dữ liệu.
 2. Nhập hai tập từ EPUB 2 và EPUB 3 tự soạn. So thứ tự chương, một đoạn ruby, vị trí ảnh và chú thích với bảng kỳ vọng của bộ mẫu. Bản EPUB nguồn vẫn khớp hash ban đầu.
 3. Chuyển tập 1 sang **Chỉ truyện**. Xem trang đang cần phân loại và kiểm phạm vi tập 2 vẫn đúng. Xem trước rồi xác nhận một chỉnh sửa ranh giới hoặc tên chương.
 4. Thoát và mở lại. Đối chiếu cây, phạm vi, mapping và liên kết về nguồn. Chạy ca file nhập lỗi trên tập trống và kiểm hai tập đã công bố.
@@ -161,7 +161,7 @@ Chẩn đoán có mã ổn định, phạm vi và bước tiếp theo. Lọc đ�
 
 | Màn / lệnh | Hành vi cần bàn giao | Task |
 |---|---|---|
-| UI-02, `workspace create <path>`, `workspace open <path>` | Nhập đường dẫn, xác nhận, đọc metadata và trạng thái chưa có tập. Báo lỗi path/quyền/schema rõ. Hai đường chạy đọc cùng dữ liệu. | T11 |
+| UI-02, `workspace create <path>`, `workspace open <path>` | TUI chọn root qua hộp thư mục Windows, hiện lựa chọn và xác nhận Tạo/Mở; CLI giữ path. Đọc metadata/trạng thái, báo lỗi rõ và bảo toàn dữ liệu. | T11 + bổ sung UI-02 |
 | UI-03, `import <epub> --volume <id>` | Chọn tập theo D06, nhập nguồn, thấy tiến trình và kết quả theo tập. Cây cho xem đoạn nguồn, ảnh, chú thích và lý do cần kiểm. | T12 |
 | UI-03, `scope set --volume <id> --content all-text` hoặc `--content story` | Lưu đúng tập. Thao tác lưu mặc định của bộ rõ ràng, riêng với đổi lựa chọn tập. | T12 |
 | Chỉnh mapping ở UI-03 | Chọn gộp, tách, dời hoặc đổi tên. Xem trước phạm vi và xác nhận để lưu. Khi lỗi hoặc stale, giữ draft và chỉ vùng cần sửa. | T10/T12 |
@@ -492,11 +492,14 @@ Cột kiểm chứng liệt kê V theo từng task: chạy toàn bộ AC/TC bắ
 - **Đầu vào.** Dependency thực thi: [P02-T01](#p02-t01), [P02-T03](#p02-t03). Căn cứ kỹ thuật: T01, T03, M1/UI-01, S-TUI/D-UI, ADR-008.
 - **Vùng sửa.** App CLI/composition và TUI Tổng quan/form workspace.
 
+**Bổ sung UI-02 được duyệt 19/11/2026, đã công bố tại CP07 ngày 21/11/2026:** [Hợp đồng chọn thư mục](../../spec/TUI_CLI_SPEC.md#workspace-folder-picker) đã được cấp assignment phiên bản và quyền sửa cụ thể, thực hiện và B review Đạt trên bản tích hợp M2; [biên nhận nội bộ CP07](../evidence/phase-02/P02-CP07.postmerge-r01.md). CP02 cũ chỉ chứng minh phạm vi cũ, không chứng minh picker. Phạm vi bổ sung không hồi tố review CP02 hoặc đổi input/candidate T12 r01 trước đây. Các quyền protected và patch được lưu trong assignment/receipt; tài liệu này không cấp quyền sửa core tùy ý.
+
 1. Nối create/open qua cùng application use case. Chọn kiểu kết quả workspace và error mapping dựa trên ADR-008.
 2. Parse lệnh/cờ trước IO. Kiểm Unicode/khoảng trắng, path trống và thiếu tham số. JSON một envelope và mã thoát đúng, chế độ không tương tác kết thúc hữu hạn.
 3. Gắn form tạo/mở vào Tổng quan với focus, xác nhận và trạng thái trống, đang chạy, thành công, thất bại. Hiển thị dữ liệu của đúng workspace đã mở.
 4. Chạy IO ngoài event/render loop. Đưa kết quả về đúng yêu cầu, giữ input khi lỗi. Khi gõ trong form, phím nhập không kích hoạt hành động phía sau.
-5. Thử trên terminal thật với workspace tạm. Tạo bằng CLI, mở bằng TUI rồi kiểm lại cùng Series. Thử mở lỗi khi workspace đang dùng vẫn hợp lệ.
+5. Thử trên terminal Windows thật với workspace tạm: tạo/mở qua folder picker, xác nhận riêng, kiểm CLI cùng Series và hủy/lỗi khi workspace đang dùng.
+6. Form Tạo chọn root cuối cùng mới/trống, form Mở chọn root hiện có; hiện lựa chọn, không tự thêm con hoặc bắt gõ/dán. Chọn không dispatch; chỉ Tạo/Mở xác nhận. Cho phép người dùng tự tạo thư mục trong dialog nếu OS hỗ trợ. Tab/Enter và chuột nếu hỗ trợ; hủy giữ input/focus/workspace, lỗi có thử lại/hủy. IO ngoài event/render; version/request loại kết quả muộn sau hủy/thay form, điều hướng hoặc đổi workspace; resize giữ state. Giữ workspace hiện hành tới khi thao tác hợp lệ thành công. Không đổi CLI/layout/API/schema hoặc validation core.
 
 **Kiểm chứng.** P02-AC11, P02-TC11, V-06/V-07 và phần create/open của V-10. B đối chiếu CLI/TUI, trạng thái form và lỗi schema/quyền. Kết quả không phụ thuộc key hoặc model.
 
@@ -509,7 +512,7 @@ Cột kiểm chứng liệt kê V theo từng task: chạy toàn bộ AC/TC bắ
 | Phạm vi sở hữu | A-P02-T11 giữ App CLI/composition và TUI Tổng quan/form workspace. Phần chung do T01/T03 giữ nghiệp vụ, người tích hợp M2 giữ router/composition. |
 | Task có thể chạy cùng | Các task đủ dependency trong sổ điều phối và không có quan hệ trước/sau với task này. Ví dụ: [P09-T01](PHASE-09.md#p09-t01), [P09-T02](PHASE-09.md#p09-t02). Ví dụ không cấp quyền bắt đầu: phải đối chiếu inputs, quyền ghi, dữ liệu thử và giới hạn 2–3 chat. Nếu cùng file/hợp đồng thì người điều phối xếp nối tiếp. |
 | Kiểm thử riêng | P02-AC11 / P02-TC11, gồm các ca chi tiết §13.3. V-06, V-07, V-10. Đối chiếu CLI output/exit và TUI phản ánh cùng kết quả core. |
-| Điểm tích hợp | [P02-CP02](#p02-cp02) — Writer và tạo/mở workspace; A chat P02 nhận và ghép, B kiểm độc lập. Chạy toàn bộ AC/TC/V của task và ca giao tiếp trong checkpoint; kết quả ghi tại §16. Consumer ngoài phase: theo dependency của checkpoint/cổng trong bảng chung. Khi checkpoint Đạt: commit, push và cập nhật draft PR ngay. |
+| Điểm tích hợp | [P02-CP02](#p02-cp02) đã công bố phạm vi T11 cũ. Bổ sung UI-02 được giao riêng và công bố tại [P02-CP07](#p02-cp07), có AC11/TC11e–i, V-10 Windows và B tích hợp M2 Đạt; không hồi tố verdict CP02. Xem [biên nhận nội bộ CP07](../evidence/phase-02/P02-CP07.postmerge-r01.md). |
 
 
 <a id="p02-t12"></a>
@@ -586,7 +589,7 @@ Cột kiểm chứng liệt kê V theo từng task: chạy toàn bộ AC/TC bắ
 | P02-AC08 | All-text giữ phần chữ đọc được. Story chờ phân loại khi ảnh hưởng cách xử lý. Đổi tập 1 không đổi tập 2. Quyết định đã chốt tái dùng đúng vị trí khi hash EPUB và version mapping khớp. Lệch một trong hai thì đối chiếu trước khi áp nhãn. | P02-T08 | P02-TC08 · V-09 |
 | P02-AC09 | Mở lại đọc đủ nguồn/mapping của mốc công bố. Tham chiếu đều tới object hoàn chỉnh. Tình trạng công bố và việc còn cần kiểm phản ánh đúng kết quả. | P02-T09 | P02-TC09 · V-06 |
 | P02-AC10 | Chỉ mapping đã xác nhận và hợp lệ được lưu. Bản cũ truy được, source IDs giữ nguyên. Xung đột giữ bản đang chỉnh. | P02-T10 | P02-TC10 · V-05, V-06 |
-| P02-AC11 | CLI/TUI tạo hoặc mở cùng dữ liệu. Lỗi trả đúng kết quả và bàn phím sử dụng được. Không đọc key hoặc gọi model. | P02-T11 | P02-TC11 · V-06, V-07, V-10 |
+| P02-AC11 | CLI/TUI tạo hoặc mở cùng dữ liệu; TUI chọn root và xác nhận riêng theo [hợp đồng picker](../../spec/TUI_CLI_SPEC.md#workspace-folder-picker), giữ dữ liệu/workspace khi hủy, lỗi hoặc kết quả cũ. Bàn phím và chuột khi hỗ trợ sử dụng được. Không đọc key hoặc gọi model. | P02-T11 | P02-TC11 · V-06, V-07, V-10 |
 | P02-AC12 | Mở lại có đúng cây, scope và mapping. Chỉ xác nhận rõ mới ghi. Xem/resize giữ dữ liệu và import chạy cục bộ. Cả hai vị trí trong workspace có nút ＋ nhập tập khi trống/có tập; chọn một EPUB qua chooser Windows, Mở/OK nhập đúng workspace, ứng dụng tự đăng ký ID; hủy/lỗi an toàn và thành công focus tập mới. | P02-T12 | P02-TC12 · V-06, V-07, V-10 |
 | P02-AC13 | Khi lỗi còn mốc nhất quán hoặc có chẩn đoán chặn ghi. Backup/migration/reopen giữ nguồn, history và mapping theo hợp đồng. | P02-T13 | P02-TC13 · V-08, V-10, V-00 |
 
@@ -606,7 +609,7 @@ Mỗi AC có phép kiểm và dữ liệu kỳ vọng riêng. Khi bàn giao, A c
 | P02-TC08 / P02-AC08 | Hai tập, trang mơ hồ, note chung và alt text. Mở lại cùng nguồn/mapping, đổi riêng hash EPUB, đổi riêng mapping version | Phạm vi đúng theo tập. Chỉ tái dùng nhãn khi khớp cả hai căn cứ và vị trí. | V-09 |
 | P02-TC09 / P02-AC09 | Nhập hai lần, nguồn đang đổi, lỗi commit | Reopen đúng snapshot/hash/ID/cây/mapping. Tình trạng công bố đúng. | V-06 |
 | P02-TC10 / P02-AC10 | Bốn thao tác mapping, sửa đồng thời, range không hợp lệ | Coverage đúng. Conflict giữ draft và version trước. | V-05, V-06 |
-| P02-TC11 / P02-AC11 | Workspace tạm, Unicode path, lỗi schema/quyền | CLI output/exit và TUI phản ánh cùng kết quả core. | V-06, V-07, V-10 |
+| P02-TC11 / P02-AC11 | Workspace tạm, chooser Windows tạo/mở, Unicode/khoảng trắng, hủy, lỗi và kết quả muộn | CLI output/exit và TUI phản ánh cùng core; xác nhận riêng và bảo toàn dữ liệu. | V-06, V-07, V-10 |
 | P02-TC12 / P02-AC12 | Tạo/nhập qua chooser/đổi scope/chỉnh/đóng/mở lại, Unicode/khoảng trắng, hủy, lỗi nguồn/chooser, đổi workspace và resize khi chờ | Dữ liệu, scope, draft và trạng thái đọc đúng. | V-06, V-07, V-10 |
 | P02-TC13 / P02-AC13 | DB/file trước-sau, failpoint, migration và demo | So toàn bộ snapshot, hash và integrity. Bản lỗi dừng an toàn. | V-08, V-10, V-00 |
 
@@ -625,7 +628,7 @@ Tên test/package là mục tiêu cần tạo ở task tương ứng. T11 có th
 | V-07 | `cargo test -p nt-tui --test workspace_import --locked` |
 | V-08 | `cargo test -p nt-storage --test phase02_recovery --locked` |
 | V-09 | `cargo test -p nt-application --test source_scope --locked` |
-| V-10 | Bài tự test mục 16.4 trên terminal Windows thật. T11 chạy phần create/open, T12 chạy import/scope/mapping, M2 chạy trọn. T12 kiểm chooser Windows thật: nút ở cả hai vị trí, duyệt thư mục, chọn EPUB, Mở/OK, hủy, lỗi và mở lại. Ghi phiên bản, kích thước, thao tác và kết quả. |
+| V-10 | Bài tự test mục 16.4 trên terminal Windows thật. Bổ sung UI-02 chạy create/open qua chooser Windows thật, xác nhận, hủy/lỗi và CLI; T12 chạy import/scope/mapping, M2 chạy trọn. T12 kiểm chooser Windows thật: nút ở cả hai vị trí, duyệt thư mục, chọn EPUB, Mở/OK, hủy, lỗi và mở lại. Ghi phiên bản, kích thước, thao tác và kết quả. |
 | V-11 | Khi thêm hoặc đổi dependency, kiểm MSRV theo ADR-001 trên graph sản phẩm. Với mốc hiện hành dùng `cargo +1.88.0 test --workspace --all-features --locked`. |
 
 **V-00 — Bộ kiểm tra Rust trước PR và trước đóng M2:**
@@ -696,6 +699,11 @@ Các mã hậu tố phân rã nhóm P02-TCxx. Mỗi dòng có thể cần nhiề
 | P02-TC11b | Thiếu tham số, path trống hoặc cờ sai với JSON/non-interactive. | Exit 2 và envelope đúng ADR-008. Không có IO trước parse hợp lệ. |
 | P02-TC11c | Giữ IO đang chờ qua barrier, nhập trong form và thao tác phím. | Vòng UI vẫn phản hồi. Input không kích hoạt control phía sau. Kết quả về đúng request. |
 | P02-TC11d | Mở DB hỏng, version mới hoặc thiếu quyền bằng CLI và terminal thật. | Có lỗi và hướng xử lý, workspace đang mở không bị thay bởi kết quả lỗi. |
+| P02-TC11e | Từ Tổng quan dùng Tab/Enter và chuột nếu hỗ trợ, chọn root mới/trống Unicode/có khoảng trắng qua picker Tạo; tùy OS tự tạo thư mục. | Form hiện root cuối cùng; chọn chưa khởi tạo, chỉ Tạo xác nhận mới gọi core; không thêm con. |
+| P02-TC11f | Chọn root workspace hiện có qua picker Mở; đối chiếu CLI create/open. | Chỉ Mở xác nhận mới mở; cùng Series/schema; CLI và core giữ hợp đồng. |
+| P02-TC11g | Hủy/Esc, chooser lỗi/không khả dụng hoặc thiếu quyền khi đã có input/workspace. | Giữ input/focus/workspace; lỗi hữu ích có thử lại/hủy, không ép dán path hay tạo/mở. |
+| P02-TC11h | Chọn đích tạo không trống, mở schema không hỗ trợ hoặc bị từ chối quyền. | Core từ chối theo validation hiện có, giữ dữ liệu và workspace đang mở. |
+| P02-TC11i | Trì hoãn picker, hủy/thay form, điều hướng hoặc đổi workspace; resize khi chờ. | UI phản hồi; resize giữ state; kết quả cũ không gây khởi tạo/chuyển hoặc áp nhầm workspace. |
 | P02-TC12a | Đăng ký/nhập hai tập và đổi scope qua CLI/TUI theo D06. | ID tập đúng, kết quả CLI hữu hạn. TUI và CLI đọc cùng scope/cây sau reopen. |
 | P02-TC12b | Xem phần mơ hồ, xác nhận loại, lưu một chỉnh sửa chương rồi mở lại. | Dấu hiệu/nhãn đúng vị trí. Chỉ thao tác xác nhận ghi version mới. |
 | P02-TC12c | Đổi kích thước, đổi tập trong lúc nhập hoặc sửa, trở lại đúng tập. | Mục chọn/focus/draft còn đúng scope. Phản hồi chậm không ghi hoặc hiển thị nhầm tập. |
@@ -725,14 +733,19 @@ A commit phần đã được B duyệt theo [Git workflow](../../../AGENTS.md#g
 
 ## 15. Điều kiện đóng phase
 
-- [ ] T01–T13 có AC đã kiểm, tài liệu/ADR đúng consumer và review B **Đạt** còn hiệu lực. Các điểm D01–D08 ảnh hưởng M2 đã có quyết định và bằng chứng.
-- [ ] B review **Đạt** bản tích hợp M2 theo [mẫu review phase](../templates/PHASE_REVIEW.md). Candidate gồm code/test/config/dependency và căn cứ nội bộ có định danh. B rà các thay đổi có thể làm bằng chứng task cũ mất hiệu lực.
-- [ ] CLI và TUI thực hiện trọn luồng tạo/mở, nhập, đổi scope, chỉnh mapping và mở lại. V-10 đã chạy trên terminal Windows thật. Lệnh và bộ mẫu của mục 16.4 khớp bản bàn giao.
-- [ ] Fixture EPUB 2/3, hybrid, ruby/shared notes, ZIP/XML lỗi và cả hai phép đổi căn cứ Q02 có bằng chứng. Đối chiếu đủ hash, thứ tự và range.
-- [ ] Hai writer, replay/mất ACK, fault trước/sau commit và missing/corrupt object có kết quả. Backup/migration staging và rollback được kiểm trên bản sao.
-- [ ] V-00 và các kiểm tra áp dụng ở mục 13 đạt trên candidate tích hợp, gồm V-11 khi có dependency mới/đổi. Kiểm phần Go bị ảnh hưởng nếu sửa cấu hình chung. Ca bắt buộc chưa chạy giữ trạng thái chưa xác minh.
-- [ ] README phản ánh lệnh, layout và nền tảng thực có. Dữ liệu Go, tài liệu riêng, EPUB, key và output được bảo toàn theo R-REPO.
-- [ ] Bàn giao mục 16 đủ để Phase 03 nhận dữ liệu nguồn, lịch sử và hợp đồng ghi.
+- [x] Bổ sung picker T11/UI-02 đã được điều phối cấp assignment/checkpoint, thực hiện và có AC11/TC11e–i, V-10 Windows cùng review B Đạt trên candidate tích hợp M2; CP02 cũ không chứng minh phạm vi này.
+- [x] T01–T13 có AC đã kiểm, tài liệu/ADR đúng consumer và review B **Đạt** còn hiệu lực. Các điểm D01–D08 ảnh hưởng M2 đã có quyết định và bằng chứng.
+- [x] B review **Đạt** bản tích hợp M2 theo [mẫu review phase](../templates/PHASE_REVIEW.md). Candidate gồm code/test/config/dependency và căn cứ nội bộ có định danh. B rà các thay đổi có thể làm bằng chứng task cũ mất hiệu lực.
+- [x] CLI và TUI thực hiện trọn luồng tạo/mở, nhập, đổi scope, chỉnh mapping và mở lại. V-10 đã chạy trên terminal Windows thật. Lệnh và bộ mẫu của mục 16.4 khớp bản bàn giao.
+- [x] Fixture EPUB 2/3, hybrid, ruby/shared notes, ZIP/XML lỗi và cả hai phép đổi căn cứ Q02 có bằng chứng. Đối chiếu đủ hash, thứ tự và range.
+- [x] Hai writer, replay/mất ACK, fault trước/sau commit và missing/corrupt object có kết quả. Backup/migration staging và rollback được kiểm trên bản sao.
+- [x] V-00 và các kiểm tra áp dụng ở mục 13 đạt trên candidate tích hợp, gồm V-11 khi có dependency mới/đổi. Kiểm phần Go bị ảnh hưởng nếu sửa cấu hình chung. Ca bắt buộc chưa chạy giữ trạng thái chưa xác minh.
+- [x] Theo chỉ đạo Master ngày 21/11/2026, README giữ bản gốc; lệnh, layout, nền tảng và bài tự test bàn giao qua [guide nội bộ M2 r03](../evidence/phase-02/CP07-integration-r03/M2.user-test-r03.md), được B r03 kiểm Đạt. Dữ liệu Go, tài liệu riêng, EPUB, key và output được bảo toàn theo R-REPO.
+- [x] Bàn giao mục 16 đủ để Phase 03 nhận dữ liệu nguồn, lịch sử và hợp đồng ghi.
+- [ ] T14–T18 và CP08/CP09 tại §17 đủ AC/TC, B độc lập, checks Windows và công bố/hậu kiểm; bản ghép M2 mới có B Đạt cùng UT06–UT09. Review kỹ thuật CP07 chỉ bao phủ candidate cũ.
+- [ ] Master hoàn tất lượt dùng thử và nghiệm thu Phase 02. Tiếp nhận góp ý thành task có phạm vi, sửa và kiểm/review phần ảnh hưởng trước khi chốt. Chưa có kết luận nghiệm thu của Master.
+
+**Đang nghiệm thu với Master; chưa đóng Phase 02/M2.** Bảy checkpoint đã công bố, gồm [PR #19](https://github.com/MajoKyo/novel-translate-cli/pull/19), head `8ac38f85fc62bea489e7a318d283f67dd4fc4fbe`, merge `8edd20965ef7c4c5d156b54fdf5c3e36b6bcd3a2`, tree `cc4bcae4b01aa982147d08dfff5e3f56357c1333`. B M2 r03 Đạt trong phạm vi kỹ thuật đã kiểm; CI, CodeRabbit và hậu kiểm 105 tests/Windows V-07 Đạt. Master đang dùng thử và yêu cầu giữ cổng nghiệm thu để góp ý. [Biên nhận nội bộ hiện hành](../evidence/phase-02/P02-CP07.postmerge-r02.md) và [bàn giao nghiệm thu](../evidence/phase-02/M2.handoff-r04.md). Các liên kết evidence là hồ sơ cục bộ, được loại khỏi Git theo yêu cầu Master. Go vẫn còn chín caller và chưa đủ điều kiện xóa; mục tiêu Rust-only còn các cổng riêng.
 
 ## 16. Bàn giao và bằng chứng
 
@@ -742,7 +755,7 @@ A phase cập nhật sổ dưới đây và gửi báo cáo cho điều phối c
 
 ### 16.1. Sổ trạng thái
 
-Theo dõi đủ 7 checkpoint của lịch v2: [P02-CP01](#p02-cp01), [P02-CP02](#p02-cp02), [P02-CP03](#p02-cp03), [P02-CP04](#p02-cp04), [P02-CP05](#p02-cp05), [P02-CP06](#p02-cp06), [P02-CP07](#p02-cp07); xem [§10.2](#p02-checkpoints). PLAN giữ commit, remote SHA, PR và cổng công bố theo [sổ checkpoint](../PARALLEL_EXECUTION.md#register).
+Theo dõi 9 checkpoint: 7 checkpoint ban đầu tại [§10.2](#p02-checkpoints), từ [P02-CP01](#p02-cp01) đến [P02-CP07](#p02-cp07), cùng [P02-CP08](#p02-cp08) và [P02-CP09](#p02-cp09) theo §17. CP07 giữ kết quả công bố cũ; đích kỹ thuật cuối M2 sau bổ sung là T18/CP09. PLAN giữ commit, remote SHA, PR và cổng công bố theo [sổ checkpoint](../PARALLEL_EXECUTION.md#register).
 
 | Gói | Task / cổng | Trạng thái | Candidate / báo cáo A–B |
 |---|---|---|---|
@@ -753,13 +766,18 @@ Theo dõi đủ 7 checkpoint của lịch v2: [P02-CP01](#p02-cp01), [P02-CP02](
 | P02-B | [T05](#p02-t05) | Đạt, CP03 đã công bố | [Hậu kiểm CP03](../evidence/phase-02/P02-CP03.postmerge-r01.md) |
 | P02-B | [T06](#p02-t06) | Đạt, CP04 đã công bố | [B r05](../evidence/phase-02/CP04-r08-evidence/b-r05/P02-CP04.review-r05.md), [hậu kiểm](../evidence/phase-02/P02-CP04.postmerge-r01.md) |
 | P02-B | [T07](#p02-t07) | Đạt, CP04 đã công bố | [B r05](../evidence/phase-02/CP04-r08-evidence/b-r05/P02-CP04.review-r05.md), [hậu kiểm](../evidence/phase-02/P02-CP04.postmerge-r01.md) |
-| P02-B | [T08](#p02-t08) | Pure D07 B Đạt; persistence/reopen còn chờ T09 | [B pure r01](../evidence/phase-02/CP05-T08-pure-r01/b-r01/P02-CP05.T08-pure-review-r01.md), chưa nghiệm thu toàn task |
-| P02-C | [T09](#p02-t09) | A tiếp tục storage và bridge độc lập trong CP05; F01 base amendment chưa được duyệt; full import chưa tích hợp | [B decision r02](../evidence/phase-02/CP05-decisions-r02/b-r02/P02-CP05.decisions-review-r02.md), [receipt tiếp tục r01](../evidence/phase-02/P02-CP05.resume-coordination-r01.md) |
-| P02-C | [T10](#p02-t10) | Chưa bắt đầu | — |
-| P02-D | [T11](#p02-t11) | Đạt, CP02 đã công bố | [Hậu kiểm CP02](../evidence/phase-02/P02-CP02.postmerge-r01.md) |
-| P02-D | [T12](#p02-t12) | Chưa bắt đầu | — |
-| P02-E | [T13](#p02-t13) | Chưa bắt đầu | — |
-| P02-E | M2 | Chưa bắt đầu | — |
+| P02-B | [T08](#p02-t08) | Đạt, CP05 đã công bố | [Hậu kiểm CP05](../evidence/phase-02/P02-CP05.postmerge-r01.md) |
+| P02-C | [T09](#p02-t09) | Đạt, CP05 đã công bố | [Hậu kiểm CP05](../evidence/phase-02/P02-CP05.postmerge-r01.md) |
+| P02-C | [T10](#p02-t10) | Đạt, CP06 đã công bố | [Hậu kiểm CP06](../evidence/phase-02/P02-CP06.postmerge-r01.md) |
+| P02-D | [T11](#p02-t11) | Đạt, CP02 phạm vi cũ; bổ sung UI-02 đã công bố tại CP07 | [Hậu kiểm CP02](../evidence/phase-02/P02-CP02.postmerge-r01.md), [CP07](../evidence/phase-02/P02-CP07.postmerge-r01.md) |
+| P02-D | [T12](#p02-t12) | Đạt, CP06 đã công bố | [Hậu kiểm CP06](../evidence/phase-02/P02-CP06.postmerge-r01.md) |
+| P02-E | [T13](#p02-t13) | Đạt, CP07 đã công bố | [B T13 r02](../evidence/phase-02/CP07-integration-r02/b-t13-r02/P02-T13.review-r02.md), [hậu kiểm CP07](../evidence/phase-02/P02-CP07.postmerge-r01.md) |
+| P02-F | [T14](#p02-t14) | Đang chuẩn bị/sửa theo phiếu CP08; chưa B nghiệm thu | [Phiếu T14](../evidence/phase-02/CP08-T14-r01/assignment-r01.md) |
+| P02-F | [T15](#p02-t15) | Chờ T14 B Đạt, chưa triển khai | [Lịch CP08](#p02-cp08) |
+| P02-G | [T16](#p02-t16) | Chờ CP08 công bố, chưa triển khai | [Lịch CP09](#p02-cp09) |
+| P02-G | [T17](#p02-t17) | Chờ T16 B Đạt, chưa triển khai | [Lịch CP09](#p02-cp09) |
+| P02-G | [T18](#p02-t18) | Chờ T17 B Đạt, chưa triển khai | [Lịch CP09](#p02-cp09) |
+| P02-G | M2 | B kỹ thuật CP07 Đạt cho candidate cũ; đang làm T14–T18 và chờ Master nghiệm thu, chưa đóng | [B CP07 r03](../evidence/phase-02/CP07-integration-r03/b-m2-r03/P02-CP07.M2.review-r03.md), [§17](#p02-ux-followup), [bàn giao nghiệm thu](../evidence/phase-02/M2.handoff-r04.md) |
 
 ### 16.2. Báo cáo mỗi task
 
@@ -800,7 +818,7 @@ Mở executable Rust theo lệnh của hồ sơ M2. Nếu nhận source, build t
 
 | Ca | Thao tác | Thấy gì thì đạt |
 |---|---|---|
-| P02-UT01 — Tạo và mở bộ | Tạo bộ thử bằng CLI, rồi chọn mở cùng đường dẫn ở **Tổng quan** trong TUI. | TUI hiển thị đúng bộ mới và danh sách tập trống. |
+| P02-UT01 — Tạo và mở bộ | Tại Tổng quan, tạo qua picker Windows chọn root mới/trống (có thể tự tạo thư mục trong dialog), kiểm form hiện root rồi bấm Tạo. Mở lại qua picker chọn root đó và bấm Mở; thử hủy/Esc, lỗi quyền/schema và đích không trống với dữ liệu thử. Kiểm thêm CLI create/open bằng path. | Chọn chưa tạo/mở; xác nhận thành công hiển thị đúng bộ và danh sách tập trống; hủy/lỗi giữ input, focus, workspace và dữ liệu; CLI đọc cùng bộ. |
 | P02-UT02 — Nhập và xem nguồn | Trong workspace đã mở, tại **Tổng quan** bấm **＋ Nhập tập truyện**, duyệt thư mục chọn một EPUB mẫu rồi bấm **Mở/OK**; tại **Tập và chương** lặp lại với EPUB thứ hai. Không gõ path hay Volume ID. Mở chương và vị trí ảnh/chú thích được chỉ trong bảng mẫu. | Hai tập xuất hiện trong đúng workspace, tập vừa nhập được focus. Thứ tự cây, đoạn nguồn, ruby, vị trí ảnh và tham chiếu chú thích khớp bảng mẫu. Trang phụ mơ hồ có dấu hiệu để đối chiếu. |
 | P02-UT03 — Đổi phạm vi một tập | Đổi tập 1 từ **Toàn bộ phần chữ** sang **Chỉ truyện**. Mở tập 2 và đối chiếu phạm vi. Quay lại tập 1 và xem trang mơ hồ có ảnh hưởng đến phạm vi. | Tập 2 vẫn dùng lựa chọn ban đầu. Tập 1 hiển thị phạm vi đã lưu và **Cần phân loại** ở vị trí tương ứng. |
 | P02-UT04 — Chỉnh cây chương | Chọn chương mẫu, đổi tên hiển thị hoặc dùng thao tác gộp/tách hợp lệ được chỉ trong gói mẫu. Đối chiếu phần xem trước rồi xác nhận. | Cây phản ánh chỉnh sửa đã xác nhận. Vùng nguồn gắn với chương vẫn phủ đúng dữ liệu mẫu. |
@@ -826,3 +844,166 @@ A chat phase ghi báo cáo task và checkpoint riêng ở evidence/phase-02. Ng�
 Owner P02 rà **Workspace, file store, nhập EPUB và cây nguồn** tại các mốc **P02-CP05/CP06; kiểm toàn luồng tại M2**, theo [lộ trình dọn Go trong PLAN](../../../PLAN.md#go-retirement-plan). Chỉ xét importer/storage đã có luồng Rust tạo–nhập–mở lại tương ứng. Nếu dịch, Editor hoặc exporter Go còn gọi thì giữ phần đó, ghi caller và mốc consumer chuyển; không xóa workspace Go của người dùng.
 
 Mỗi checkpoint ghi phần có thể dọn, phần còn caller/thiếu bằng chứng, task xử lý và mốc rà lại. Khi đủ điều kiện, điều phối cấp allowlist/owner Go, đăng ký task và CP dọn riêng; kiểm và B review candidate sau dọn rồi commit/push ngay. Không chờ lượt dọn để push CP chức năng đã Đạt. Bằng chứng Go và artifact còn lại chuyển vào sổ điều phối; không tự tuyên bố toàn dự án chỉ Rust khi GO-FINAL chưa Đạt.
+
+<a id="p02-ux-followup"></a>
+
+## 17. Sửa trải nghiệm nhập EPUB sau khi người dùng thử M2
+
+**Bổ sung ngày 21/11/2026.** T01–T13 và CP01–CP07 là lịch đã thực hiện. Mốc kỹ thuật gần nhất là CP07 trên `rewrite/rust` tại `8edd20965ef7c4c5d156b54fdf5c3e36b6bcd3a2`. M2 đang chờ người dùng nghiệm thu. Năm task dưới đây tiếp nhận góp ý trên Windows. Tất cả bắt đầu ở trạng thái **Chưa thực hiện**. Kết quả cũ của B chỉ bao phủ candidate cũ.
+
+Khi nhập xong, người đọc cần thấy tập vừa nhập, nhìn được các chương theo thứ tự, mở chữ Nhật và tìm từng ảnh ngay tại vị trí xuất hiện. Khi bấm phím hay gõ vào ô nhập, tiêu đề phải đứng yên và người dùng phải nhìn được mục đang chọn. Trong ảnh góp ý, tiêu đề “Chưa có nguồn” xuất hiện cùng một tập đã nhập. “3/12” đếm vị trí trong danh sách có cả phần phụ. “6997 cần kiểm” cộng nhiều loại vấn đề của cả tập. Những con số này là ví dụ quan sát được, không phải số chương, ngưỡng lỗi hay hằng số để đưa vào code.
+
+### 17.1. Giao việc và hai checkpoint
+
+| Checkpoint | Task theo thứ tự | Đầu vào và thời điểm công bố | Master thử được gì sau khi merge và hậu kiểm |
+|---|---|---|---|
+| <a id="p02-cp08"></a>**P02-CP08 — Vẽ màn hình và nhập liệu** | [T14](#p02-t14) → [T15](#p02-t15) | Nhận CP07 đã công bố. Chạy V-07, V-10 và V-00 trên bản ghép. B kiểm cả vòng đời terminal và form có chooser. Commit, push và mở/cập nhật draft PR ngay khi đủ cổng. | Giữ phím di chuyển và gõ vào form sau khi quay về từ hộp chọn tệp. |
+| <a id="p02-cp09"></a>**P02-CP09 — Duyệt chương và ảnh sau khi nhập** | [T16](#p02-t16) → [T17](#p02-t17) → [T18](#p02-t18) | Nhận đúng SHA của CP08 sau merge và hậu kiểm. B kiểm bản ghép với EPUB 2/3 qua luồng nhập thật, các ca §17.7 và V-00. Commit, push và mở/cập nhật draft PR của CP09 ngay khi đủ cổng. | Từ tập vừa nhập tìm được Chương 1, ảnh trong chương, lý do cần xem lại và tệp ảnh trong Explorer. |
+
+**Nguồn giao việc.** Điều phối Phase 02 đăng ký đúng năm task, hai checkpoint và quyền ghi trong PLAN cùng [graph thực thi](../PARALLEL_TASKS.json) trước khi giao code. Lịch bổ sung đặt đầu ra kỹ thuật cuối M2 ở T18/CP09. CP07 là mốc đã công bố của lịch ban đầu. Consumer đã nhận CP05/CP06 tiếp tục dùng đúng bản đã bàn giao. Consumer yêu cầu toàn bộ M2 nhận bản mới sau hậu kiểm và nghiệm thu của Master. Một người điều phối nhận kết quả và ghép tuần tự, mỗi lượt có phiếu riêng hoặc nhóm 2–3 task gắn chặt đã đăng ký trước.
+
+Lịch v2 đang dùng vẫn trỏ M2 vào T13. Khi nhận việc, điều phối thêm năm node theo hai hàng trên, chuyển con trỏ M2 sang T18 và cờ checkpoint cuối từ CP07 sang CP09 trong phiên bản lịch mới. Với nền 112 task/64 checkpoint, lịch sau tiếp nhận có 117 task/66 checkpoint. Cập nhật các tổng hiện hành, kiểm chu trình và các cổng mở sớm. Giữ phiên bản mà các consumer đang làm đã ghim. Gói bàn giao nội bộ có `graph-r01.patch` áp được lên lịch v2 và phần §17 riêng để đưa vào worktree. Nếu nền đã đổi, đối chiếu bảng trên và tạo diff theo nền mới.
+
+**Các phần đã merge.** Từ merge CP07, A đối chiếu [quy tắc protected](../MERGE_WORKFLOW.md) với M1, CP06 (`3155243be22768a3036c14ed8cf0e1e87bffdcbc`) và CP07, ghi merge sở hữu từng đoạn thực sự cần sửa. Với đoạn đã nghiệm thu, trình Master lỗi tái hiện, file/hành vi, diff tối thiểu và test trước khi áp dụng. Quyền đã có hiệu lực cho đúng diff thì dùng tiếp. Sự đồng ý về thiết kế và prompt dưới đây giao việc lập candidate, chưa phê duyệt trước một diff runtime chưa thấy. Giao một owner cho mỗi file dùng chung. Tài liệu publication và candidate mà B đang review có bản ghim riêng.
+
+**Hợp đồng dùng lại.** [TUI và phím theo ngữ cảnh](../../spec/TUI_CLI_SPEC.md), [thiết kế màn Tập và chương](../../desgin/UI_UX_DESIGN_STEP8.md), [thứ tự đọc và ranh giới chương](../../spec/EPUB_INPUT_SPEC.md), [ảnh gốc và ảnh chỉnh](../../spec/IMAGE_EDIT_SPEC.md), [vị trí nguồn](../../decisions/ADR-003.md) và [ranh giới crate](../../decisions/ADR-008.md). Việc duyệt sách và lấy bản sao một ảnh dùng nguồn đã lưu. Dịch, chỉnh ảnh và xuất EPUB thuộc các phase tương ứng.
+
+<a id="p02-t14"></a>
+
+### 17.2. P02-T14 — Di chuyển trong terminal mà màn hình không nháy
+
+1. Trên bản CP07, ghi Windows/terminal, kích thước và chuỗi phím tái hiện. Tại `nt-tui/src/terminal.rs`, `draw_buffer` hiện xóa màn hình rồi in từng dòng và đặt lại con trỏ ở góc trên. Ghi lệnh vẽ cho hai khung liên tiếp khi đứng yên và khi chỉ đổi một dòng chọn. Chụp hình buffer tĩnh chưa đo được nháy.
+2. Để một nơi sở hữu khung trước và lần ghi ra terminal. Lần vẽ đầu tạo khung đầy đủ. Khi di chuyển thì so hai khung, ghi các ô thay đổi trong cùng lượt và flush khi hoàn tất. Tính cả kiểu hiển thị, phần cuối dòng vừa ngắn đi và ô tiếp nối ký tự rộng. Dựng lại khung khi kích thước/bề mặt terminal thực sự mất hiệu lực.
+3. Kiểm chuyển màn, đóng lớp trợ giúp, thu/phóng, thoát và đường lỗi trong lúc vẽ. Khôi phục con trỏ, chế độ nhập và màn hình gốc đúng vòng đời hiện có. Giữ xử lý event và công việc chạy nền hoạt động khi khung nhìn đứng yên.
+
+| Trường | Nội dung giao việc |
+|---|---|
+| Đầu vào bắt buộc | P02-T13 đã Đạt, receipt CP07 và SHA nêu ở §17. Phiếu ghim bản terminal, TUI spec và review M1/CP đã đụng. |
+| Hợp đồng dùng chung | Nhận kích thước và trạng thái hiện tại, xuất khung đúng cả ký tự lẫn vùng chọn. Một lần vẽ lỗi đi qua cleanup hiện hành. T15 nhận quy tắc ai vẽ con trỏ. |
+| Phạm vi sở hữu | A-P02 phụ trách `crates/nt-tui/src/terminal.rs`, các đoạn vẽ liên quan trong `rendering.rs` và test bộ ghi terminal. Điều phối cấp đoạn dùng chung với T15. |
+| Task có thể chạy cùng | Các chat ngoài P02 đã có đầu vào riêng có thể tiếp tục. Trong P02 cho phép chuẩn bị kịch bản nhập liệu bằng fixture riêng trong lúc B xem T14. |
+| Kiểm thử riêng | **P02-AC14 / TC14a–c.** (a) Hai khung giống nhau và di chuyển ↑/↓ không phát lệnh xóa toàn màn trong lượt bình thường. (b) Replay các lần vẽ cho kết quả đúng như vẽ đầy đủ với tiếng Việt, chữ Nhật rộng, dòng ngắn lại và resize. (c) Giữ ↓ rồi ↑ trên Windows Terminal thật, kiểm vùng chọn, nháy và khôi phục terminal sau khi thoát. V-07, V-10. |
+| Điểm tích hợp | B review T14, A giao renderer cho T15. Ở CP08 chạy lại TC14 cùng ca nhập chữ và chooser. |
+
+<a id="p02-t15"></a>
+
+### 17.3. P02-T15 — Chữ nằm trong ô nhập và người dùng thấy rõ nút đang chọn
+
+1. Tái hiện riêng lỗi gõ chữ đè lên “Novel Translate” khi nhập tên/đổi tên, khi vừa trở về từ chooser và sau resize. Kiểm chỗ nhận sự kiện phím, chế độ echo của console, con trỏ hệ điều hành và tọa độ ô nhập. Việc đặt con trỏ ở góc trên là dấu hiệu cần kiểm tra, chưa kết luận được nguyên nhân của lỗi nhập chữ.
+2. Mỗi lần gõ chỉ form đang có focus nhận chữ. Vẽ dấu nhập theo chiều rộng ô hiển thị bên trong trường, cuộn trường khi đầy. Khi rời ô nhập, trở về kiểu con trỏ phù hợp. Sau chọn hoặc hủy chooser, đưa focus về đúng control. Tab/Shift+Tab đi theo thứ tự nhìn thấy. Enter và bấm chuột vào cùng nút kích hoạt cùng một hành động. Nút hoặc dòng đang chọn có dấu hiệu nhìn được cả khi terminal ít màu.
+3. Kiểm bộ gõ tiếng Việt, chữ Nhật đã xác nhận nhập, khoảng trắng, phím giữ, Backspace, Esc và quay lại từ hộp chọn. Khi đang gõ, chữ trùng phím tắt vẫn vào ô. Đổi kích thước hoặc đóng lớp trên cùng phải trả người dùng về đúng chỗ cùng nội dung nháp.
+
+| Trường | Nội dung giao việc |
+|---|---|
+| Đầu vào bắt buộc | T14 và hợp đồng khung/con trỏ của đúng candidate B duyệt, hoặc cùng nhóm đã được điều phối ghi rõ. Nhận lại ca chooser T11/T12. |
+| Hợp đồng dùng chung | Focus, vị trí con trỏ và vùng bấm dùng cùng bố cục. Chọn/hủy hộp thoại và sự kiện đến muộn chỉ ảnh hưởng form/yêu cầu còn hiệu lực. |
+| Phạm vi sở hữu | A-P02 phụ trách `crates/nt-tui/src/input.rs`, `screens/workspace_form.rs`, `screens/import_draft.rs` và đường hiển thị con trỏ cần thiết. `windows_input.rs` chỉ vào phiếu nếu ca tái hiện dẫn đến đó. |
+| Task có thể chạy cùng | Chat khác dùng worktree và terminal/profile thử riêng. Hai người sửa đường nhận phím hoặc con trỏ được điều phối xếp nối tiếp. |
+| Kiểm thử riêng | **P02-AC15 / TC15a–d.** (a) Gõ tên tiếng Việt/Nhật, khoảng trắng và Backspace, đối chiếu giá trị trường và tiêu đề. (b) Tab/Enter và chuột kích hoạt đúng một lần, cả sau khi chooser trả về. (c) Hủy, resize và kết quả cũ đến muộn giữ đúng nháp/focus. (d) Người thử dùng Windows Terminal thật với bộ gõ và hộp thoại thật, ghi phím và kết quả. V-07, V-10. |
+| Điểm tích hợp | A chạy TC14–15, V-00 và gửi B bản ghép CP08. Khi hậu kiểm xong, bàn giao SHA cho T16 và gửi Master cách thử UT06. |
+
+<a id="p02-t16"></a>
+
+### 17.4. P02-T16 — Đọc được cả mục lục, vị trí ảnh và lý do cần xem lại
+
+1. Bắt đầu từ `BookView`, `describe_tree` và `ReviewIssue`. Hiện đường đọc trả về chủ yếu dòng được chọn và tổng số vấn đề. Tạo phần đọc vừa đủ cho giao diện lấy danh sách các mục cùng con của mục đang mở, đoạn nguyên tác và từng vị trí ảnh. Tái dùng snapshot, mapping đã lưu và phạm vi theo tập. Dùng thứ tự đọc, tiêu đề nguồn và chỉnh sửa ranh giới đã xác nhận để lập danh sách.
+2. Phân biệt mở đầu, các chương có tên, phần kết, mục phụ và vùng chưa xác định theo bằng chứng. Chương có thể trải qua nhiều XHTML, hoặc nhiều chương dùng chung một XHTML. Giữ vị trí ảnh xen giữa chữ. Đếm ảnh toàn tập theo tài nguyên riêng và đếm/lần theo từng lần xuất hiện trong chương. Ảnh chưa gắn được vào chương vẫn tìm thấy trong danh sách ảnh toàn tập, với lý do cụ thể.
+3. Trả lý do cần xem lại theo loại và vị trí nếu đã biết. Phân biệt tổng số ghi nhận, số chương, số ảnh và số lần xuất hiện. Khi chưa xác định vị trí, trả lý do để UI hiển thị ở cấp tập. Đọc theo phần đang xem, dùng lại dữ liệu trong cùng phiên bản. Chuyển mục trong cây không giải nén EPUB hoặc đọc lại toàn tập cho từng phím.
+
+| Trường | Nội dung giao việc |
+|---|---|
+| Đầu vào bắt buộc | T15 ở CP08 đã công bố, hợp đồng mapping T07/T10, công bố nguồn T09 và dịch vụ đọc T12. Ghim phiên bản fixture có đáp án độc lập. |
+| Hợp đồng dùng chung | Yêu cầu mang workspace, volume, generation/snapshot và phiên bản mapping. Kết quả chứa định danh mục, tiêu đề, thứ tự, trạng thái tạm/đã xác nhận, vị trí nguồn và tham chiếu ảnh khi có. Phân biệt đang đọc, rỗng, lỗi đọc và kết quả cũ. Xem dữ liệu là thao tác chỉ đọc. |
+| Phạm vi sở hữu | A-P02 phụ trách phần đọc trong `apps/novel-translate/src/import_service.rs` và dữ liệu UI ở `crates/nt-tui/src/import_commands.rs`. Dùng các reader ứng dụng sẵn có. Ghi riêng đề xuất nếu thật sự cần đổi hợp đồng parser, storage hay schema đã merge. |
+| Task có thể chạy cùng | Chat P03/P07 tiếp tục trên hợp đồng đã nhận khi có quyền riêng. Có thể soạn dữ liệu kỳ vọng ở checkout thử, rồi T17 mới nối reader đúng bản đã review. |
+| Kiểm thử riêng | **P02-AC16 / TC16a–d.** (a) EPUB 2 NCX với chương qua nhiều file và EPUB 3 Nav với hai chương cùng file cho đúng thứ tự và tên. (b) Một ảnh xuất hiện hai nơi, hai ảnh trùng tên khác thư mục, ảnh chưa gắn chương cho đúng số và vị trí. (c) Mục lục thiếu/mâu thuẫn và mục phụ cho nhãn có căn cứ. (d) Đổi tập/mapping khi đang đọc loại kết quả cũ, đọc lại dữ liệu đã lưu cho kết quả đúng và generation không đổi. V-05, V-06 cùng test mới trên reader thật. |
+| Điểm tích hợp | B kiểm bảng đối chiếu mục lục/ảnh/lý do bằng fixture tự soạn. Giao cho T17/T18 định danh đã duyệt và cách tìm đúng phiên bản ảnh. |
+
+<a id="p02-t17"></a>
+
+### 17.5. P02-T17 — Hiện kết quả nhập, cây chương và nguyên tác có ảnh
+
+1. Cả hai nút **＋ Nhập tập truyện** dùng cùng luồng. Khi đang nhập, hiện tên tệp và trạng thái thực sự biết. Khi đã lưu, chuyển về tập mới và mở sẵn cây. Nếu cần thời gian lấy mục lục thì hiện “Đã nhập tập · Đang đọc mục lục…”. Lỗi đọc cây sau khi lưu có **Đọc lại**, tránh người dùng nhập trùng. Hủy, lỗi trước khi lưu hoặc đã đổi workspace cần trả đúng màn và trạng thái. Chỉ hiện “Chưa có nguồn” khi tập được chọn thực sự trống.
+2. Dòng trạng thái hiển thị số chương chính và số ảnh lấy từ T16. Các hàng đầu tiên cho thấy các chương cạnh nhau, giữ tên gốc và thứ tự. Mở chương để chọn **Đọc chương** hoặc **Ảnh trong chương (n)**. Ở nguyên tác, nhãn ảnh nằm giữa các đoạn đúng vị trí nguồn. Từ danh sách ảnh quay đến được lần xuất hiện đã chọn. Với ảnh ở nhiều chỗ, cho chọn vị trí. Đưa các cảnh báo vào **Cần xem lại → Xem lý do** có mô tả bằng tiếng Việt và đường đến mục liên quan. Với ranh giới tạm, diễn đạt rõ điểm bắt đầu/kết thúc chương còn cần đối chiếu.
+3. ↑/↓ đổi hàng, Enter mở mục đang chọn, Esc quay lại một cấp, Tab chuyển vùng. F1 và thanh cuối giải thích các thao tác hợp lệ của mục hiện tại. Đặt các lệnh phạm vi, phân loại, đổi tên, gộp, tách và dời ranh giới trong **Thao tác khác** có nhãn rõ. Dùng lại luồng nháp/xem trước/xác nhận tương ứng của T10/T12. Bấm chuột vào hàng/nút làm cùng việc như bàn phím. Ở 80×24 mở chi tiết theo từng màn, từ 120 cột có cây cạnh phần đọc, dưới mức tối thiểu áp dụng trạng thái thu nhỏ của TUI. Resize và quay lại giữ đúng mục, vị trí đọc và nháp.
+
+Ví dụ bố cục cho bộ mẫu có năm chương và 21 ảnh. Mỗi nhãn và số đếm thực tế phải lấy từ tập đang mở.
+
+~~~text
+Đã nhập Tập 1 · 5 chương chính · 21 ảnh             [＋ Nhập tập truyện]
+▾ Tập 1
+    Mở đầu
+  ▾ Chương 1 · <tên trong mục lục>
+      Đọc chương
+      Ảnh trong chương (4)
+  ▸ Chương 2 · <tên trong mục lục>
+    …
+    Phần kết
+    Ảnh toàn tập (21)
+↑ ↓ Chọn mục     Enter Mở     Esc Quay lại     [Cần xem lại] [Thao tác khác]
+~~~
+
+| Trường | Nội dung giao việc |
+|---|---|
+| Đầu vào bắt buộc | T16 được B duyệt cùng bộ dữ liệu có nhãn/mapping tạm. Nhận hành vi focus của CP08 và các action T12. |
+| Hợp đồng dùng chung | Cây, vùng chi tiết và thông báo dùng cùng tập/phiên bản. Chọn dòng hoặc xem lý do chỉ điều hướng. Các chỉnh sửa lưu qua use case cũ khi có xác nhận. |
+| Phạm vi sở hữu | A-P02 phụ trách `crates/nt-tui/src/screens/import_screen.rs`, `rendering.rs`, input/state liên quan và test `workspace_import.rs`. Dùng reader T16 và điểm mở tệp T18. |
+| Task có thể chạy cùng | T18 có thể chuẩn bị fixture và bộ giả chooser trong vùng riêng. Ghép nút và reader sau khi hợp đồng T17 đã Đạt, hoặc theo nhóm ghép đã đăng ký. |
+| Kiểm thử riêng | **P02-AC17 / TC17a–d.** (a) Từ cả Tổng quan và Tập và chương, nhập/hủy/lỗi/đã lưu nhưng đọc lỗi đều cho tiêu đề và nút tiếp theo đúng. (b) 80×24 và ≥120 cột thấy đúng cây, chọn Chương 2 ngay từ danh sách, click/Enter trùng kết quả. (c) Đọc qua đoạn–ảnh–đoạn, theo liên kết tới ảnh dùng lại rồi quay về đúng hàng. (d) Xem lý do khi có/thiếu vị trí, thử mở menu và hủy chỉnh sửa, đổi tập/resize/reopen. Nội dung cũ, generation và draft đúng với từng thao tác. V-06, V-07, V-10. |
+| Điểm tích hợp | B đối chiếu màn hình với đáp án EPUB thật của fixture. A ghép cây và hành động ảnh với T18 ở CP09. |
+
+<a id="p02-t18"></a>
+
+### 17.6. P02-T18 — Mở hoặc lưu ảnh gốc bằng tên dễ tìm
+
+1. Khi chọn ảnh, hiển thị vị trí dễ đọc như **Tập 1 › Chương 1 › Ảnh 2**, tên tệp gốc và các vị trí dùng. **Mở thư mục chứa ảnh** mở Explorer và chọn đúng tệp nguồn đã xác minh của volume/snapshot hiện tại, kể cả khi có hai ảnh trùng tên. Chuỗi ID/hash dành cho việc đối chiếu nội bộ. Tên thân thiện chỉ là nhãn trên màn hình.
+2. **Lưu bản sao vào…** mở hộp chọn nơi lưu trên Windows, gợi ý tên ảnh gốc và cho người dùng chọn đường dẫn ngắn. Ghi đúng byte của ảnh đã chọn. Khi đích đã tồn tại, cho chọn tên khác hoặc xác nhận thay thế rõ ràng. Hủy hoặc gặp lỗi thì bảo toàn tệp đích cũ, thu hồi phần ghi dở và cho thử lại. Loại đích trùng nguồn hoặc đè vào DB, object, snapshot được quản lý. Bản sao người dùng lưu là tệp riêng với ảnh chỉnh dùng để xuất EPUB.
+3. Giải địa chỉ ảnh bằng tham chiếu đã kiểm của snapshot. Kiểm đúng ảnh hiện có, đường dẫn Unicode/có dấu cách, ảnh thiếu/hỏng và yêu cầu đã cũ sau đổi tập. Dùng adapter hệ điều hành với đối số đường dẫn tách riêng. Hộp thoại và I/O chạy ngoài vòng vẽ. Ghi nhận lỗi Explorer/quyền bằng thông báo có hành động tiếp theo. Chỉ nhận thành công cho đúng yêu cầu.
+
+| Trường | Nội dung giao việc |
+|---|---|
+| Đầu vào bắt buộc | T17 và các định danh nguồn do T16 bàn giao ở cùng phiên bản. Ghim đường đọc ảnh gốc T02/T09 và fixture trùng tên. |
+| Hợp đồng dùng chung | UI gửi định danh tài nguyên/lần xuất hiện và phiên bản. Adapter trả đã mở/đã lưu/hủy/lỗi cho yêu cầu phù hợp. Mở Explorer chỉ đọc nguồn. Lưu bản sao chỉ ghi đích người dùng đã chọn. |
+| Phạm vi sở hữu | A-P02 phụ trách hành động ảnh trong TUI, adapter Windows ở `apps/novel-translate/src`, đường nối app và test riêng. Đọc ảnh qua API kho hiện hành. Cần chạm đoạn runtime đã merge thì dùng phiếu diff tại §17.1. |
+| Task có thể chạy cùng | Chat P07 tiếp tục phần ảnh chỉnh/xuất bằng phiên bản đã nhận. Hai owner xếp nối tiếp nếu cần cùng điểm nối app hoặc cùng file. |
+| Kiểm thử riêng | **P02-AC18 / TC18a–d.** (a) Capture đúng đường dẫn được giao cho Explorer, kiểm chọn tệp thật trên Windows. (b) Lưu đích ngắn có Unicode/khoảng trắng, so byte/hash với ảnh nguồn. (c) Hủy, trùng tên, từ chối ghi đè, lỗi quyền/ghi giữa chừng, đích trùng nguồn và ảnh mất/hỏng đều bảo toàn dữ liệu. (d) Đổi tập khi chooser đang mở và mở lại workspace, đối chiếu file, cây, nguồn và generation. V-02, V-06, V-07, V-10 và V-00 bản ghép. |
+| Điểm tích hợp | A nộp B bản ghép CP09 và lượt kiểm toàn M2 trên candidate mới. Sau merge/hậu kiểm gửi Master UT07–UT09. Ghi riêng verdict kỹ thuật, phản hồi của Master và kết quả nghiệm thu cuối. |
+
+<a id="p02-ux-user-test"></a>
+
+### 17.7. Master tự nghiệm thu trên Windows
+
+CI dùng EPUB tự soạn, workspace tạm riêng và đáp án lập trước. B chạy lại với parser, lưu/mở lại thật và terminal Windows. Sách riêng chỉ dùng cho lượt Master tự thử tại máy mình. Ảnh chụp, EPUB, đường dẫn cá nhân và evidence để cục bộ. Ghi bản đã chạy, loại terminal, kích thước, kết quả **Đạt / Không đạt / Chưa thử** cho từng ca. Sau mỗi checkpoint A giao lệnh chạy từ đúng commit/binary và thư mục fixture.
+
+| Ca | Thao tác của người dùng | Pass khi |
+|---|---|---|
+| **P02-UT06 · CP08** | Tạo/mở workspace thử. Giữ ↑/↓, bấm Tab, nhập tên có dấu. Mở rồi hủy hộp chọn thư mục/tệp. Gõ tiếp, thu nhỏ rồi mở rộng cửa sổ. | Tiêu đề đứng yên, chữ chỉ xuất hiện trong ô nhập, nút đang chọn dễ nhận ra. Không cần bấm lại để tìm focus. |
+| **P02-UT07 · CP09** | Bấm **＋ Nhập tập truyện**, chọn EPUB, đợi thông báo rồi mở Tập 1. Chọn Chương 1, sang Chương 2 bằng bàn phím. Mở một mục **Cần xem lại** nếu sách có. | Thấy kết quả nhập và thứ tự các chương cạnh nhau. Đọc được nguyên tác và lý do phải kiểm. Với đúng ấn bản đã dùng góp ý, đối chiếu mở đầu, Chương 1–5 và phần kết với mục lục. |
+| **P02-UT08 · CP09** | Mở **Ảnh trong chương**. Chọn một ảnh, xem vị trí giữa các đoạn, mở thư mục chứa ảnh rồi **Lưu bản sao vào…** một thư mục thử ngắn. Thử hủy lượt lưu kế tiếp. | Explorer chọn đúng tệp, bản sao mở được và khớp ảnh gốc, hủy không sinh tệp. Với đúng ấn bản trên đối chiếu 21 ảnh của tập và 4 ảnh trong Chương 1. Với sách khác dùng số thực trong EPUB đó. |
+| **P02-UT09 · CP09** | Đóng app rồi mở lại workspace. Mở lại Chương 1, xem ảnh và vị trí nguồn, thử ở 80×24 và từ 120 cột. | Tìm lại được chương/ảnh mà không phải nhập lại EPUB hay tìm thư mục hash. Cây, mapping và nội dung đã lưu khớp trước khi đóng. |
+
+<a id="p02-ux-prompt"></a>
+
+### 17.8. Prompt cho chat điều phối Phase 02
+
+Dán vào **chat đang phụ trách Phase 02**. Nếu worktree đó có tài liệu cũ, lấy §17 từ checkout tài liệu gốc rồi ghim SHA-256 vào phiếu. Mỗi checkpoint có lượt review, công bố và hướng dẫn Master thử riêng.
+
+~~~text
+Tiếp tục Phase 02 từ §17 của docs/roadmap/phases/PHASE-02.md. Bắt đầu P02-T14.
+Đọc AGENTS.md, PLAN.md và các file trong docs/roadmap gồm REVIEW_WORKFLOW.md,
+PARALLEL_EXECUTION.md, PARALLEL_TASKS.json, MERGE_WORKFLOW.md cùng spec/ADR của §17.1.
+Xác minh CP07 đã merge và hậu kiểm tại 8edd2096.
+Đối chiếu với rewrite/rust hiện tại và phần các chat khác đang làm. Bảo toàn các bản đang review.
+Nhận graph-r01.patch trong gói nội bộ post-import-ux-plan-2026-11-21 ở evidence/phase-02
+hoặc đối chiếu bảng §17.1 trên nền mới. Với vai điều phối, ghi T14 → T15 tại CP08 và
+T16 → T17 → T18 tại CP09 vào PLAN/graph, giữ các cổng nhận CP05/CP06 đã có.
+Ghim đầu vào, owner, file, baseline và bằng chứng trước khi sửa. Dùng worktree, nhánh feature/
+và dữ liệu thử riêng. Làm từng task hoặc nhóm nhỏ đã đăng ký. Với phần đã merge cần đổi,
+tái hiện lỗi, đưa đúng diff tối thiểu và test cho Master duyệt theo MERGE_WORKFLOW.
+Thực hiện AC/TC của từng task và thử trên Windows Terminal thật. Tự gọi gpt-6.1-sol
+reasoning max trong phiên độc lập để review. Sửa findings, cho B kiểm lại bản ghép.
+Khi từng CP đủ V-00, manual và B Đạt, commit có body, push thường, cập nhật draft PR ngay.
+Điều phối merge khi đủ cổng, hậu kiểm, dọn scratch theo quy tắc và báo Master cách thử.
+Sau CP08 bàn giao UT06, rồi tiếp tục CP09 khi đủ đầu vào. Sau CP09 bàn giao UT07–UT09,
+hậu kiểm M2 và chờ Master xác nhận nghiệm thu. Lịch sử T01–T13 và CP01–CP07 vẫn truy được.
+~~~
