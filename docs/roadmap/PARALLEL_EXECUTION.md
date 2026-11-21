@@ -122,7 +122,7 @@ Checkpoint là điểm công bố code, khác checkpoint trạng thái tác vụ
 
 ## 7. Sổ điều phối và bằng chứng
 
-PLAN giữ bảng chat, task, quyền ghi, inputs và bước tiếp. Người điều phối cập nhật bằng report A/B và commit thực tế. Mẫu giao việc nằm ở [PHASE_ASSIGNMENT](templates/PHASE_ASSIGNMENT.md); prompt dùng ngay ở [CHAT_STARTERS](CHAT_STARTERS.md). Danh sách 112 task/64 checkpoint ở [PARALLEL_TASKS.json](PARALLEL_TASKS.json) dùng kiểm dependency/cycle/coverage, chưa thay evidence nghiệm thu.
+PLAN giữ bảng chat, task, quyền ghi, inputs và bước tiếp. Người điều phối cập nhật bằng report A/B và commit thực tế. Mẫu giao việc nằm ở [PHASE_ASSIGNMENT](templates/PHASE_ASSIGNMENT.md); prompt dùng ngay ở [CHAT_STARTERS](CHAT_STARTERS.md). [PARALLEL_TASKS.json](PARALLEL_TASKS.json) hiện có 117 task/66 checkpoint sau bổ sung [P02-T14–T18/CP08–CP09](phases/PHASE-02.md#p02-ux-followup) ngày 21/11/2026, từ nền 112 task/64 checkpoint. Graph dùng kiểm dependency/cycle/coverage, chưa thay evidence nghiệm thu. M2 nhận T18/CP09 và nghiệm thu Master; các cổng nhận sớm CP05/CP06 giữ nguyên.
 
 | Task / CP | A / B / điều phối | Nhánh / worktree / dữ liệu thử | Inputs + contract/hash | Quyền ghi | Candidate / report | Commit / remote SHA / PR | Trạng thái / điều kiện tiếp |
 |---|---|---|---|---|---|---|---|

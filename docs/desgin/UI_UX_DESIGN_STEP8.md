@@ -131,8 +131,12 @@ Kích thước tính bằng **ô hiển thị terminal**, không phải pixel. N
 ```
 
 **Thông tin:** series/volume hiện hành; tiến độ theo nội dung; tác vụ thực tế; điểm chờ; hoạt động gần đây.  
-**Hành động:** Mở tập, **＋ Nhập tập truyện**, tiếp tục tác vụ hợp lệ, mở issue/Skills đang chờ.  
+**Hành động:** **Tạo workspace**, **Mở workspace**, mở tập, **＋ Nhập tập truyện**, tiếp tục tác vụ hợp lệ, mở issue/Skills đang chờ.
 **Ràng buộc:** Mở Dashboard không tự khởi động AI.
+
+**Luồng tạo/mở workspace được duyệt 19/11/2026:** Tạo mở form với **Chọn nơi lưu…/Chọn thư mục…**, gọi hộp chọn thư mục gốc Windows. Chọn trực tiếp root cuối cùng mới/trống; có thể chủ động tạo thư mục trong hộp thoại nếu OS hỗ trợ. Mở mở form với **Chọn workspace…** để chọn root workspace hiện có được hỗ trợ. Form hiện đường dẫn đã chọn; không tự thêm thư mục con và không cần gõ/dán đường dẫn. Tab/Enter và chuột khi terminal hỗ trợ dùng được. Chọn chỉ điền form; chỉ **Tạo/Mở** xác nhận mới gọi use case hiện có. Việc người dùng tạo thư mục trong dialog không khởi tạo workspace.
+
+Esc/hủy giữ input, focus và workspace hiện hành; lỗi chooser/quyền có hướng xử lý, thử lại/hủy mà không bắt dán path. IO ngoài vòng event/render, kết quả có version/request; kết quả muộn sau hủy/thay form, điều hướng hoặc đổi workspace bị bỏ. Resize giữ state; workspace đang mở chỉ thay khi thao tác xác nhận hợp lệ thành công. Kiểm Unicode/khoảng trắng, thư mục tạo không trống, schema không hỗ trợ, thiếu quyền và bảo toàn dữ liệu theo core. CLI không đổi, không đổi layout/API/schema; Windows là phạm vi hiện hành, Linux/WSL native chưa xác minh. Chọn API/thư viện thuộc owner triển khai/ADR. Xem [đặc tả](../spec/TUI_CLI_SPEC.md#workspace-folder-picker).
 
 ### 4.2. Volumes & Chapters — Tập và chương
 
